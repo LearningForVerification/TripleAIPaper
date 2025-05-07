@@ -48,25 +48,6 @@ class CustomNN(nn.Module):
         return x
 
 
-# Definiamo il custom regularizer
-def calculate_rs_loss_regularizer(model, hidden_layer_dim, lb, ub, normalized):
-    params = list(model.parameters())
-    W1, b1 = params[0], params[1]
-
-    lb_1, ub_1 = interval_arithmetic_fc(lb, ub, W1, b1)
-    rs_loss = _l_relu_stable(lb_1, ub_1)
-
-    n_unstable_nodes = (lb_1 * ub_1 < 0).sum(dim=1).float().mean().item()
-
-    if DEBUG:
-        print(f"{hidden_layer_dim=}")
-
-    if normalized:
-        rs_loss = rs_loss / hidden_layer_dim
-        rs_loss = (rs_loss + 1) / 2
-        assert 0 <= rs_loss <= 1, "RS LOSS not in 0, 1 range"
-
-    return rs_loss, n_unstable_nodes
 
 # Definiamo il custom regularizer
 def calculate_rs_loss_regularizer_lirpa(arch_shape, lb, ub, normalized):
@@ -106,10 +87,10 @@ def train(
         ubs, lbs = inputs + noise, inputs - noise
         return calculate_rs_loss_regularizer(model, hidden_layer_dim, lbs, ubs, normalized=True)
 
-    def compute_rs_loss_lirpa(inputs, model, hidden_layer_dim, noise):
-        bounds_dict = get_bounds_dict(model, batch_data=inputs, eps_noise=noise, optimize_bound_args = {'optimize_bound_args': {'iteration': 20, 'lr_alpha': 0.1, }}, method="IBP", device=device)
-        lbs, ubs= bounds_dict['/input']
-        return calculate_rs_loss_regularizer_lirpa(model, hidden_layer_dim, lbs, ubs, normalized=True)
+    # def compute_rs_loss_lirpa(inputs, model, hidden_layer_dim, noise):
+    #     bounds_dict = get_bounds_dict(model, batch_data=inputs, eps_noise=noise, optimize_bound_args = {'optimize_bound_args': {'iteration': 20, 'lr_alpha': 0.1, }}, method="IBP", device=device)
+    #     lbs, ubs= bounds_dict['/input']
+    #     return calculate_rs_loss_regularizer_lirpa(model, hidden_layer_dim, lbs, ubs, normalized=True)
 
 
     for epoch in range(num_epochs):

@@ -87,7 +87,7 @@ def get_dataset_testing(dataset_name, train_size=5000, test_size=1000):
     return train_subset, test_subset, dummy_input, input_dim, output_dim
 
 
-def get_data_loader_testing(dataset_name, train_batch_size, test_batch_size, train_size=5000, test_size=1000,
+def get_data_loader_testing(dataset_name, train_batch_size, test_batch_size, train_size=128, test_size=64,
                             num_workers=None):
     """
     Get data loaders with reduced dataset sizes for testing purposes.

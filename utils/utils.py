@@ -48,7 +48,7 @@ def generate_csv(file_path, header: list, verbose=False):
         print(f"Failed to update file {file_path}. Error: {e}")
 
 
-def write_results_on_csv(file_path, dict_to_write, verbose=False):
+def write_results_on_csv(file_path, dict_to_write):
     """
     Appends a dictionary of results to a CSV file.
 
@@ -73,8 +73,6 @@ def write_results_on_csv(file_path, dict_to_write, verbose=False):
 
             writer.writerow(dict_to_write)
 
-        if verbose:
-            print(f"Results appended to {file_path}")
 
     except Exception as e:
         raise Exception(f"Failed to write to file {file_path}. Error: {e}")

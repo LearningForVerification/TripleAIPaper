@@ -1,48 +1,40 @@
+# logger_setup.py
 import logging
-from pathlib import Path
-from logging.handlers import RotatingFileHandler
+from logging import StreamHandler, FileHandler
+import os
 
-# Crea la directory dei log se non esiste
-LOG_FILE = "application.log"
+class ColorFormatter(logging.Formatter):
+    COLOR_RESET = "\033[0m"
+    COLOR_MAP = {
+        'regularized_trainer.py': '\033[94m',  # blu
+        'hyper_param_search.py': '\033[92m',    # verde
+    }
 
-# Nome del file di log comune
-LOG_FILE = "application.log"
+    def format(self, record):
+        filename = record.pathname.split(os.sep)[-1]  # solo nome file
+        color = self.COLOR_MAP.get(filename, "")
+        formatted = super().format(record)
+        return f"{color}{formatted}{self.COLOR_RESET}"
 
+def setup_logger():
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
 
-def setup_logging():
-    """
-    Configura il logging a livello radice per inviare tutti i messaggi allo stesso file
-    con livello INFO.
-    """
-    # Ottieni il logger root
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
+    # Evita duplicazioni
+    if logger.hasHandlers():
+        logger.handlers.clear()
 
-    # Controlla se è già stato configurato
-    if not root_logger.handlers:
-        # Crea il formatter comune
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    # Console handler con colori
+    ch = StreamHandler()
+    ch.setLevel(logging.INFO)
+    ch.setFormatter(ColorFormatter('%(asctime)s - %(levelname)s - %(filename)s - %(message)s'))
 
-        # Crea il file handler con rotazione
-        file_handler = RotatingFileHandler(
-            log_dir / LOG_FILE,
-            maxBytes=10 * 1024 * 1024,  # 10MB
-            backupCount=5
-        )
-        file_handler.setLevel(logging.INFO)
-        file_handler.setFormatter(formatter)
+    # File handler senza colori
+    fh = FileHandler("logs/app.log")
+    fh.setLevel(logging.INFO)
+    fh.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 
-        # Aggiungi l'handler al logger root
-        root_logger.addHandler(file_handler)
+    logger.addHandler(ch)
+    logger.addHandler(fh)
 
-        # Aggiungi anche un handler per la console (opzionale)
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
-        console_handler.setFormatter(formatter)
-        root_logger.addHandler(console_handler)
-
-        logging.info("Logging inizializzato. Tutti i messaggi di log verranno salvati in: %s", log_dir / LOG_FILE)
-
-
-# Esegui la configurazione quando questo modulo viene importato
-setup_logging()
+    return logger

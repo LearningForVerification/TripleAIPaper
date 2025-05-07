@@ -5,16 +5,15 @@ import warnings
 
 import numpy as np
 import torch
-from auto_LiRPA import BoundedModule, PerturbationLpNorm, BoundedTensor
-from auto_LiRPA.utils import MultiAverageMeter
-from exceptiongroup import suppress
+# from auto_LiRPA import BoundedModule, PerturbationLpNorm, BoundedTensor
+# from auto_LiRPA.utils import MultiAverageMeter
+# from exceptiongroup import suppress
 from torch import optim, nn, multiprocessing
 import torch.nn.functional as F
 from torch.utils.data import Subset, DataLoader
 from torchvision import datasets
 from torchvision.transforms import transforms
 
-from src.generate_tests_rsloss_full_dataset import DEBUG
 from utils.dataset import get_dataset
 from utils.utils import load_yaml_config, write_results_on_csv
 
@@ -52,36 +51,7 @@ print("LAMBDA_PERCENTAGE_INCREASING =", LAMBDA_PERCENTAGE_INCREASING)
 print("NOISE_PERCENTAGE_INCREASING =", NOISE_PERCENTAGE_INCREASING)
 print("N_EPOCHS =", N_EPOCHS)
 
-class SimpleFCNet(nn.Module):
-    def __init__(self, h_dim):
-        super(SimpleFCNet, self).__init__()
-        self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(28 * 28, h_dim)
-        self.fc2 = nn.Linear(h_dim, 10)
 
-    def forward(self, x):
-        x = self.flatten(x)
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
-
-def save_model(model, hidden_dim, folder, device):
-    # Export the models to ONNX format
-    dummy_input = torch.rand(1, 784).to(device)  # Ensure input is on the same device
-
-    # Save the model in ONNX and PyTorch formats
-    torch.onnx.export(
-        model,
-        dummy_input,
-        f"{folder}/{hidden_dim}.onnx",
-        input_names=['input'],
-        output_names=['output'],
-        export_params=True,
-        opset_version=11,
-        do_constant_folding=True,
-    )
-
-    torch.save(model, f"{folder}/{hidden_dim}.pth")
 
 
 def calculate_epochs(filters_number):

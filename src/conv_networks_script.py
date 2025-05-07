@@ -6,18 +6,21 @@ import pstats
 import torch
 from auto_LiRPA import BoundedModule, PerturbationLpNorm, BoundedTensor
 from torch import nn, Tensor
-import src.lirpa_test.logger
+
+from src.lirpa_test.logger import  setup_logger
 import logging
 
-from src.generate_tests_rsloss_full_dataset import calculate_rs_loss_regularizer_lirpa
-from src.lirpa_test.hyper_params_researcher import BinaryHyperParamsResearch
-from src.lirpa_test.nn_models import CustomFCNN
+from src.lirpa_test.hyper_params_search import BinaryHyperParamsResearch
+from src.lirpa_test.nn_models import CustomConvNN
 from src.lirpa_test.regularized_trainer import ModelTrainingManager
+from utils.rs_loss_regularizer import  calculate_rs_loss_regularizer_fc
 
+DEBUG = False
 min_increment = 0.1
-max_increment = 5
+max_increment = 6
 steps_limit = 20
 
+setup_logger()
 logger = logging.getLogger(__name__)
 logger.info("Applicazione avviata")
 
@@ -26,57 +29,47 @@ class ModelTrainingManager_Shallow(ModelTrainingManager):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def get_rsloss(self, model: nn.Module, architecture_tuple: tuple, input_batch: Tensor,
-                   perturbation: PerturbationLpNorm, method='ibp') -> tuple[Any, Any]:
-        image = BoundedTensor(input_batch, perturbation)
-        _, _ = model.compute_bounds(x=(image,), method=method)
-        bounds_saved = model.save_intermediate()
-
-        lb, ub = bounds_saved['/input']
-        rs_loss, unstable_nodes = calculate_rs_loss_regularizer_lirpa(architecture_tuple, lb, ub, normalized=True)
-        return rs_loss, unstable_nodes
+    def get_rsloss(self, model: nn.Module, model_ref, architecture_tuple: tuple, input_batch: Tensor,
+                   perturbation: float, method='ibp') -> tuple[Any, Any]:
+        # Input perturbed bounds
+        input_lb = input_batch - perturbation
+        input_ub = input_batch + perturbation
 
 
-    # Definiamo il custom regularizer
-    def calculate_rs_loss_regularizer_lirpa(self, hidden_layer_dim, lb, ub, normalized):
-
-        def _l_relu_stable(lb, ub, norm_constant=1.0):
-            loss = -torch.mean(torch.sum(torch.tanh(1.0 + norm_constant * lb * ub), dim=-1))
-
-            if loss < lb.shape[1] * -1 or loss > lb.shape[1]:
-                raise Exception("Error in RS Loss, value exceeding the maximum")
-
-            return loss
-
-        rs_loss = _l_relu_stable(lb, ub)
-
-        n_unstable_nodes = (lb * ub < 0).sum(dim=1).float().mean().item()
-
-
-        if normalized:
-            rs_loss = rs_loss / hidden_layer_dim
-            rs_loss = (rs_loss + 1) / 2
-            assert 0 <= rs_loss <= 1, "RS LOSS not in 0, 1 range"
+        rs_loss, n_unstable_nodes = calculate_rs_loss_regularizer_fc(model_ref, architecture_tuple[1], input_lb, input_ub, normalized=True)
 
         return rs_loss, n_unstable_nodes
 
 
+
 def main():
-    hidden_layers_dim = [30, 50, 100, 200, 500, 1000, 2000, 4000, 8000, 10000]
-    hidden_layers_dim = [(784, x, 10) for x in hidden_layers_dim]
+    input_dim = 784
+    output_dim = 10
+    kernel_size = 3
+    stride = 1
+    padding = 1
+    conv_filters_dim = [30, 50, 100, 200, 500, 1000, 2000, 4000, 8000, 10000]
+    fc_layers_dim = [10,20,30,40,50,60,70,80,90,100]
+    arch_tuple = [(input_dim, output_dim, conv_filters_dim[index], kernel_size, stride, padding, fc_layers_dim[index]) for index, x in enumerate(conv_filters_dim)]
 
     config_file_path = "config_one_layered_full_dataset.yaml"
-    hyper_params_search = BinaryHyperParamsResearch(CustomFCNN, config_file_path, "MNIST",
-                                                    hidden_layers_dim, verbose=True)
+    hyper_params_search = BinaryHyperParamsResearch(CustomConvNN, config_file_path, "FMNIST",
+                                                    arch_tuple)
     hyper_params_search.binary_search(min_increment, max_increment, steps_limit, ModelTrainingManager_Shallow)
 
 
 if __name__ == "__main__":
-    profiler = cProfile.Profile()
-    profiler.enable()
+    setup_logger()
 
-    main()
+    if DEBUG:
+        profiler = cProfile.Profile()
+        profiler.enable()
 
-    profiler.disable()
-    stats = pstats.Stats(profiler).sort_stats('cumulative')
-    stats.print_stats()
+        main()
+
+        profiler.disable()
+        stats = pstats.Stats(profiler).sort_stats('cumulative')
+        stats.print_stats()
+
+    else:
+        main()

@@ -1,4 +1,5 @@
 import copy
+import logging
 from os import PathLike
 from typing import Tuple, Any, Union
 from abc import ABC, abstractmethod
@@ -14,13 +15,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Optimizer
 from typing import Dict, Type
-import logging
-
-from src.lirpa_test.train_network import SimpleFCNet
-
-VALIDATION_FREQUENCY = 10
-ACCURACY_THRESHOLD = 0.001
-
+from src.lirpa_test import VALIDATION_FREQUENCY, ACCURACY_THRESHOLD, DEBUG
 
 
 class ModelTrainingManager(ABC):
@@ -29,7 +24,6 @@ class ModelTrainingManager(ABC):
                  verbose: bool = True
                  ):
         self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.INFO if verbose else logging.DEBUG)
 
         # The accuracy that must be beaten
         self.target_accuracy = target_acc
@@ -50,8 +44,6 @@ class ModelTrainingManager(ABC):
         self.refinement_percentage = refinement_percentage
 
         self.refinement_cycle_length = refinement_cycle_length
-
-        self.verbose = verbose
 
     @abstractmethod
     def get_rsloss(self, model: nn.Module, model_ref, architecture_tuple: tuple, input_batch: Tensor,
@@ -158,8 +150,9 @@ class ModelTrainingManager(ABC):
             )
 
             if epoch % VALIDATION_FREQUENCY == 0 and epoch != 0:
+                self.logger.debug(f"Evaluating model on test set at epoch {epoch + 1}/{num_epochs}")
                 test_accuracy, _, _, _, test_unstable_nodes = self.calculate_accuracy_and_loss(
-                    model, arch_tuple, criterion, num_classes, rsloss_lambda=rsloss_lambda,
+                    model, model_ref, arch_tuple, criterion, num_classes, rsloss_lambda=rsloss_lambda,
                     train_set=False, eps=eps)
 
 
@@ -193,13 +186,16 @@ class ModelTrainingManager(ABC):
             'rs_train_loss': partial_rsloss_train,
             'rs_test_loss': partial_rsloss_test,
             'lambda': rsloss_lambda,
+            'cycle': 1,
             'eps': eps,
             'train_unstable_nodes': train_unstable_nodes,
-            'test_unstable_nodes': test_unstable_nodes
+            'test_unstable_nodes': test_unstable_nodes,
+            'architecture' : arch_tuple,
         }
+
+
         
-        self.logger.info(f"NETWORK ARCHITECTURE: {arch_tuple} with rsloss_lambda={rsloss_lambda} and eps={eps}")
-        self.logger.info("Training completed with following metrics:")
+        self.logger.info(f"Training completed with architecture {arch_tuple} and rsloss_lambda {rsloss_lambda} with following metrics:")
         self.logger.info(f"Train accuracy: {train_accuracy:.2f}%")
         self.logger.info(f"Test accuracy: {test_accuracy:.2f}%")
         self.logger.info(f"Train loss: {train_loss:.4f}")
@@ -316,15 +312,11 @@ class ModelTrainingManager(ABC):
                     rsloss_lambda *= (1 + self.refinement_percentage)
                     cycle_counter += 1
                 else:
-                    if backup_model is None:
-                        self.logger.warning("Backup not available, refinement failed")
-                        if self.verbose:
-                            print("Backup not available, refinement failed")
+                    if backup_model[0] is None:
+                        self.logger.info("Backup not available, refinement failed")
                         return  False, None, None, None
 
                     self.logger.info("Restoring from last successful backup")
-                    if self.verbose:
-                        print("Refinement partially successful, backup returned")
                     model = backup_model[0]
                     model_ref = backup_model[1]
                     cycle_counter = cycle_counter_backup
@@ -351,7 +343,8 @@ class ModelTrainingManager(ABC):
                 'cycle': cycle_counter,
                 'eps': eps,
                 'train_unstable_nodes': train_unstable_nodes,
-                'test_unstable_nodes': test_unstable_nodes
+                'test_unstable_nodes': test_unstable_nodes,
+                'architecture': arch_tuple,
             }
 
             self.logger.info(
@@ -387,7 +380,7 @@ class ModelTrainingManager(ABC):
     ) -> tuple[float | Any, float | Any, float | Any, int | Any] | float | Any:
         """Calculate loss values for model evaluation"""
         if not hasattr(self, 'train_data_loader') or not hasattr(self, 'test_loader'):
-            self.logger.error("Data loaders not initialized")
+            self.logger.info("Data loaders not initialized")
             raise AttributeError("Data loaders not initialized")
 
         if next(model.parameters()).device != self.device:
@@ -413,7 +406,6 @@ class ModelTrainingManager(ABC):
                     loss = loss_criterion(outputs, targets_hot_encoded)
                 else:
                     loss: Tensor = loss_criterion(outputs, targets)
-                    self.logger.debug(f"Loss shape: {loss.shape}")
                     running_loss += loss.item()
                 if rsloss_lambda is not None:
                     _rs_loss, _unstable_nodes = self.get_rsloss(model=model, model_ref=model_ref, architecture_tuple=architecture_tuple,
@@ -432,6 +424,7 @@ class ModelTrainingManager(ABC):
         if rsloss_lambda is not None:
             partial_rs_loss = rs_loss
             total_loss = partial_loss + rsloss_lambda * partial_rs_loss
+            unstable_nodes = unstable_nodes / len(data_loader)
             return total_loss, partial_loss, partial_rs_loss, unstable_nodes
         else:
             return partial_loss
@@ -443,7 +436,7 @@ class ModelTrainingManager(ABC):
     ) -> float:
         """Calculate accuracy for model evaluation"""
         if not hasattr(self, 'train_data_loader') or not hasattr(self, 'test_loader'):
-            self.logger.error("Data loaders not initialized")
+            self.logger.info("Data loaders not initialized")
             raise AttributeError("Data loaders not initialized")
 
         if next(model.parameters()).device != self.device:
@@ -520,9 +513,9 @@ class ModelTrainingManager(ABC):
             else:
                 loss = criterion(outputs, targets)
             partial_loss_1 = loss.item()
-            rsloss_result = self.get_rsloss(model, model_ref, arch_tuple, inputs, eps)
-            partial_loss_2 = rsloss_result[0]
-            train_unstable_nodes += rsloss_result[1]
+            rsloss_result, unstable_nodes = self.get_rsloss(model, model_ref, arch_tuple, inputs, eps)
+            partial_loss_2 = rsloss_result
+            train_unstable_nodes += unstable_nodes
             total_loss = loss + rsloss_lambda * partial_loss_2
 
             # Optimize
@@ -547,9 +540,9 @@ class ModelTrainingManager(ABC):
             'loss_2_train': running_train_loss_2
         }
 
-        if self.verbose:
-            print(f"Epoch Statistics:")
-            print(f"  Train -> Loss: {epoch_stats['train_loss']:.4f}, "
+        if DEBUG:
+            self.logger.info(f"Epoch Statistics:")
+            self.logger.info(f"  Train -> Loss: {epoch_stats['train_loss']:.4f}, "
                   f"Accuracy: {epoch_stats['train_accuracy']:.2f}%")
 
-        return train_unstable_nodes
+        return train_unstable_nodes/len(self.train_data_loader)

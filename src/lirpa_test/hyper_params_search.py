@@ -5,25 +5,15 @@ import torch
 from torch import save
 
 from src.lirpa_test.regularized_trainer import ModelTrainingManager
-from src.lirpa_test.train_network import save_model
 from utils.dataset import get_dataset, get_data_loader, get_data_loader_testing
 from utils.utils import load_yaml_config, write_results_on_csv, save_models
-
-logger = logging.getLogger(__name__)
+from src.lirpa_test import REFINEMENT_PERCENTAGE, REFINEMENT_CYCLE_LENGTH, NUMBER_OF_CYCLES, NUM_EPOCHS, NOISE, \
+    ACCURACY_THRESHOLD,RS_LOSS_FIRST_NN
 
 RESULTS_FOLDER = "NETWORKS"
-CSV_FILE = "results.csv"
+CSV_FILE = os.path.join(RESULTS_FOLDER, "results.csv")
 BACKUP_FOLDER = os.path.join(RESULTS_FOLDER, "BACKUP")
 device = "cuda" if torch.cuda.is_available() else "cpu"
-
-REFINEMENT_CYCLE_LENGTH = 1000
-REFINEMENT_CYCLE_LENGTH = 1
-
-REFINEMENT_PERCENTAGE = 3 / 100
-NUMBER_OF_CYCLES = 3
-NUM_EPOCHS = 2
-NOISE = 0.015
-ACCURACY_THRESHOLD = 0.001
 
 
 def _generate_model(model_cls, candidates_network_archs):
@@ -35,40 +25,41 @@ def _generate_model(model_cls, candidates_network_archs):
     return to_ret_list
 
 
-def _get_min_index_and_value(results_list):
-    logger.debug(results_list)
+def _get_min_index_and_value(results_dict):
     best_index, best_tuple = min(
-        enumerate(results_list),
-        key=lambda x: x[1][1]['test_unstable_nodes']
+        enumerate(results_dict),
+        key=lambda x: x[1][2]['test_unstable_nodes']
     )
-    return results_list[best_index][0], results_list[best_index][1]
+    return results_dict[best_index][0], results_dict[best_index][1], results_dict[best_index][2]
 
 
 class BinaryHyperParamsResearch:
 
     def __init__(self, model_cls, config_file_path, dataset_name, candidates_network_archs, train_batch_dim=128,
-                 test_batch_dim=64, verbose=False):
+                 test_batch_dim=64):
         self.models = _generate_model(model_cls, candidates_network_archs)
         self.config = load_yaml_config(config_file_path
                                        )
 
         self.train_data_loader, self.test_data_loader, self.dummy_input, self.input_dim, self.output_dim = (
-            get_data_loader_testing(dataset_name, train_batch_dim, test_batch_dim))
+            get_data_loader(dataset_name, train_batch_dim, test_batch_dim))
 
         self.metrics_collection = list()
         self.model_collection = list()
         self.save_folder = os.path.join(RESULTS_FOLDER, dataset_name)
-        self.csv_file_path = os.path.join(RESULTS_FOLDER, CSV_FILE)
+        self.csv_file_path = CSV_FILE
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        self.verbose = verbose
+        self.logger = logging.getLogger(__name__)
+        self.logger.info(f"Device: {self.device}")
 
-    def binary_search(self, min_increment, max_increment, steps_limit, trainer_manager, starting_rs_factor=0):
+    def binary_search(self, limit_min_increment, limit_max_increment, steps_limit, trainer_manager, starting_rs_factor=0):
         # Rs lambda for the smallest network, this values has to increase
         rs_factor = starting_rs_factor
 
         # Get baseline model and metrics 
         first_model = self.models.pop(0)
+        first_model_arch = first_model.get_shape()
 
         baseline_model_training_manager = trainer_manager(
             0,
@@ -77,7 +68,6 @@ class BinaryHyperParamsResearch:
             number_of_cycle=NUMBER_OF_CYCLES,
             refinement_percentage=REFINEMENT_PERCENTAGE,
             refinement_cycle_length=REFINEMENT_CYCLE_LENGTH,
-            verbose=self.verbose
         )
 
         baseline_metrics, baseline_model, baseline_model_ref = baseline_model_training_manager.train(first_model,
@@ -85,26 +75,30 @@ class BinaryHyperParamsResearch:
                                                                                                      self.dummy_input,
                                                                                                      self.config,
                                                                                                      num_epochs=NUM_EPOCHS,
-                                                                                                     rsloss_lambda=0,
+                                                                                                     rsloss_lambda=RS_LOSS_FIRST_NN,
                                                                                                      eps=NOISE)
 
         # Save baseline results
         save_models(baseline_model_ref, baseline_model_ref.identifier, self.save_folder, self.device, self.dummy_input)
-        write_results_on_csv(self.csv_file_path, baseline_metrics, verbose=True)
+        write_results_on_csv(self.csv_file_path, baseline_metrics)
 
-        logger.info("SAVED BASELINE MODEL")
+        self.logger.info(f"Minimum Accuracy and Unstable Nodes threshold set by baseline model's results with architecture {first_model_arch}:")
 
         # Initialize tracking variables
         previous_accuracy = baseline_metrics['test_accuracy']
         previous_unstable_nodes = baseline_metrics['test_unstable_nodes']
         best_models_dict = {baseline_model_ref.identifier: [
-            (baseline_model, baseline_metrics)]}  # Collects models that improved stability
+            (baseline_model, baseline_model_ref, baseline_metrics)]}  # Collects models that improved stability
 
         # Evaluate remaining models
         for idx, model_untr in enumerate(self.models):
-            logger.info(f"Training and refining the {idx}-th model")
+            self.logger.info(f"Training and refining the {idx}-th model")
 
-            target_rs_loss = None
+            # Initialize search parameters
+            min_increment = limit_min_increment
+            max_increment = limit_max_increment
+
+            target_rs_loss = rs_factor
             increment = (max_increment - min_increment) / 2
             steps_counter = 0
             failure_bool = True
@@ -114,7 +108,7 @@ class BinaryHyperParamsResearch:
                 # Metrica da battere del precedente modello di dimensione inferiore andato a buon fine
                 to_beat_metric = _get_min_index_and_value(best_models_dict[list(best_models_dict.keys())[-1]])
 
-                logger.info(f"Iteration {steps_counter}")
+                self.logger.info(f"Iteration {steps_counter}")
 
                 # Train model with current parameters
                 model_training_manager = trainer_manager(
@@ -124,7 +118,7 @@ class BinaryHyperParamsResearch:
                     number_of_cycle=NUMBER_OF_CYCLES,
                     refinement_percentage=REFINEMENT_PERCENTAGE,
                     refinement_cycle_length=REFINEMENT_CYCLE_LENGTH,
-                    verbose=self.verbose
+
                 )
 
                 metrics, model, model_ref = model_training_manager.train(
@@ -133,12 +127,12 @@ class BinaryHyperParamsResearch:
                     self.dummy_input,
                     self.config,
                     num_epochs=NUM_EPOCHS,
-                    rsloss_lambda=rs_factor,
+                    rsloss_lambda=rs_factor + increment,
                     eps=NOISE
                 )
 
-                if metrics['test_unstable_nodes'] > to_beat_metric[1]['test_unstable_nodes']:
-                    logger.debug(
+                if metrics['test_unstable_nodes'] > to_beat_metric[2]['test_unstable_nodes']:
+                    self.logger.info(
                         f"Model {idx} needs refinement - current unstable nodes: {metrics['test_unstable_nodes']} \n"
                         f"Refining attempt")
                     # Save model state dict
@@ -149,15 +143,16 @@ class BinaryHyperParamsResearch:
                         model_untr.get_shape(),
                         self.dummy_input,
                         self.config,
-                        initial_rsloss_lambda=rs_factor,
+                        initial_rsloss_lambda=rs_factor + increment,
                         eps=NOISE,
                         model_path=os.path.join(BACKUP_FOLDER, 'model_' + str(idx) + '_state.pth')
                     )
 
                     if success_flag:
                         if refined_metrics['test_unstable_nodes'] < metrics['test_unstable_nodes']:
-                            logger.info(f"Refinement successful for model {idx}")
+                            self.logger.info(f"Refinement successful for model {idx}")
                             model = refined_model
+                            model_ref = refined_ref_model
                             metrics = refined_metrics
 
                 # Check if model improved accuracy
@@ -177,7 +172,7 @@ class BinaryHyperParamsResearch:
                     # Check if stability improved
                     if previous_unstable_nodes is not None:
                         if metrics['test_unstable_nodes'] < previous_unstable_nodes:
-                            logger.info(f"Model {idx} achieved better stability - breaking search")
+                            self.logger.info(f"Model {idx} achieved better stability - breaking search")
                             break
 
                 else:  # Accuracy decreased
@@ -187,7 +182,7 @@ class BinaryHyperParamsResearch:
                 steps_counter += 1
 
                 if min_increment > max_increment:
-                    logger.error("min_increment > max_increment. Error in binary research implementation")
+                    self.logger.error("min_increment > max_increment. Error in binary research implementation")
                     raise ValueError("min_increment > max_increment. Error in binary research implementation")
 
             if not failure_bool:
@@ -199,13 +194,13 @@ class BinaryHyperParamsResearch:
                 previous_unstable_nodes = metrics['test_unstable_nodes']
 
                 # Save results
-                save_models(model_ref, model.identifier, self.save_folder, self.device, self.dummy_input)
+                save_models(model_ref, model_ref.identifier, self.save_folder, self.device, self.dummy_input)
                 write_results_on_csv(CSV_FILE, metrics)
                 rs_factor = target_rs_loss
 
-                logger.info(f"Accuracy of network with {idx} has set the accuracy minimum to {previous_accuracy}")
-                logger.debug(f"Metrics: {metrics}")
+                self.logger.info(f"Accuracy of network with {idx} has set the accuracy minimum to {previous_accuracy}")
+                self.logger.debug(f"Metrics: {metrics}")
 
             else:
-                logger.warning(f"Network with {idx} filters has failed.")
-            logger.debug(f"Current best models: {best_models_dict}")
+                self.logger.info(f"Network with {idx} filters has failed.")
+            self.logger.debug(f"Current best models: {best_models_dict}")
