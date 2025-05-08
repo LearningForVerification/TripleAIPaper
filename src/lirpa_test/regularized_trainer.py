@@ -47,7 +47,7 @@ class ModelTrainingManager(ABC):
 
     @abstractmethod
     def get_rsloss(self, model: nn.Module, model_ref, architecture_tuple: tuple, input_batch: Tensor,
-                   perturbation: PerturbationLpNorm, method='ibp') -> Tuple[Tensor, Dict]:
+                   perturbation: PerturbationLpNorm, eps: float, method='ibp') -> Tuple[Tensor, Dict]:
         """
         Calculate the regularization loss for the model.
 
@@ -136,7 +136,7 @@ class ModelTrainingManager(ABC):
 
         # Training the model
         for epoch in range(num_epochs):
-            self.logger.info(f"Starting epoch {epoch + 1}/{num_epochs}")
+            self.logger.debug(f"Epoch {epoch + 1}/{num_epochs}")
             self._train_epoch_and_get_stats(
                 model=model,
                 model_ref = model_ref,
@@ -307,7 +307,9 @@ class ModelTrainingManager(ABC):
 
                     self.logger.info(
                         f"Creating backup with {test_accuracy=}, {test_unstable_nodes=}, {rsloss_lambda=}")
-                    backup_model = (copy.deepcopy(model), copy.deepcopy(model_ref))
+                    backup_model_ref = copy.deepcopy(model_ref)
+                    backup_model = BoundedModule(backup_model_ref, dummy_input, device=self.device)
+                    backup_model = (backup_model, backup_model_ref)
                     cycle_counter_backup = cycle_counter
                     rsloss_lambda *= (1 + self.refinement_percentage)
                     cycle_counter += 1
@@ -409,7 +411,7 @@ class ModelTrainingManager(ABC):
                     running_loss += loss.item()
                 if rsloss_lambda is not None:
                     _rs_loss, _unstable_nodes = self.get_rsloss(model=model, model_ref=model_ref, architecture_tuple=architecture_tuple,
-                                               input_batch=inputs, perturbation=eps)
+                                               input_batch=inputs, perturbation=perturbation, eps=eps)
                     rs_loss += _rs_loss.item()
                     unstable_nodes += _unstable_nodes
                 
@@ -513,7 +515,7 @@ class ModelTrainingManager(ABC):
             else:
                 loss = criterion(outputs, targets)
             partial_loss_1 = loss.item()
-            rsloss_result, unstable_nodes = self.get_rsloss(model, model_ref, arch_tuple, inputs, eps)
+            rsloss_result, unstable_nodes = self.get_rsloss(model, model_ref, arch_tuple, inputs, perturbation, eps)
             partial_loss_2 = rsloss_result
             train_unstable_nodes += unstable_nodes
             total_loss = loss + rsloss_lambda * partial_loss_2

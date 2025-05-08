@@ -8,10 +8,15 @@ import os
 DATASET_DIRECTORY = '../datasets'
 
 
-def get_dataset(dataset_name):
+def get_dataset(dataset_name, input_flattened = True):
 
     if dataset_name == 'MNIST':
-        dummy_input = torch.randn(1, 1, 784)
+
+        if input_flattened:
+            dummy_input = torch.randn(1, 1, 784)
+        else:
+            dummy_input = torch.randn(1, 1, 28, 28)
+
         transform = transforms.Compose([transforms.ToTensor()])
         train_set = datasets.MNIST(root=DATASET_DIRECTORY
                                    , train=True, download=True, transform=transform)
@@ -21,7 +26,12 @@ def get_dataset(dataset_name):
         output_dim = 10
 
     elif dataset_name == 'FMNIST':
-        dummy_input = torch.randn(1, 1, 784)
+
+        if input_flattened:
+            dummy_input = torch.randn(1, 1, 784)
+        else:
+            dummy_input = torch.randn(1, 1, 28, 28)
+
         transform = transforms.Compose([transforms.ToTensor()])
         train_set = datasets.FashionMNIST(root=DATASET_DIRECTORY
                                           , train=True, download=True, transform=transform)
@@ -31,7 +41,12 @@ def get_dataset(dataset_name):
         output_dim = 10
 
     elif dataset_name == 'CIFAR10':
-        dummy_input = torch.randn(1, 3, 32, 32)
+
+        if input_flattened:
+            dummy_input = torch.randn(1, 1, 3*32*32)
+        else:
+            dummy_input = torch.randn(1, 3, 32, 32)
+
         normalize = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010])
         transform = transforms.Compose([
             transforms.RandomHorizontalFlip(),
@@ -50,8 +65,8 @@ def get_dataset(dataset_name):
     return  train_set, test_set, dummy_input, input_dim, output_dim
 
 
-def get_data_loader(dataset_name, train_batch_size, test_batch_size, num_workers=None):
-    train_set, test_set, dummy_input, input_dim, output_dim = get_dataset(dataset_name)
+def get_data_loader(dataset_name, train_batch_size, test_batch_size, input_flattened, num_workers=None):
+    train_set, test_set, dummy_input, input_dim, output_dim = get_dataset(dataset_name, input_flattened)
 
     if num_workers is None:
         num_workers = min(os.cpu_count(), 8)

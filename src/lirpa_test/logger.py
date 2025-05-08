@@ -3,11 +3,12 @@ import logging
 from logging import StreamHandler, FileHandler
 import os
 
+
 class ColorFormatter(logging.Formatter):
     COLOR_RESET = "\033[0m"
     COLOR_MAP = {
         'regularized_trainer.py': '\033[94m',  # blu
-        'hyper_param_search.py': '\033[92m',    # verde
+        'hyper_param_search.py': '\033[92m',  # verde
     }
 
     def format(self, record):
@@ -16,20 +17,26 @@ class ColorFormatter(logging.Formatter):
         formatted = super().format(record)
         return f"{color}{formatted}{self.COLOR_RESET}"
 
+
 def setup_logger():
     logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)  # Changed to DEBUG level
 
-    # Evita duplicazioni
+    # Properly close existing handlers before clearing
     if logger.hasHandlers():
-        logger.handlers.clear()
+        for handler in logger.handlers[:]:
+            handler.close()  # Close the handler
+            logger.removeHandler(handler)  # Remove the handler
 
-    # Console handler con colori
+    # Console handler with colors
     ch = StreamHandler()
-    ch.setLevel(logging.INFO)
+    ch.setLevel(logging.DEBUG)  # Already at DEBUG level
     ch.setFormatter(ColorFormatter('%(asctime)s - %(levelname)s - %(filename)s - %(message)s'))
 
-    # File handler senza colori
+    # Create logs directory if it doesn't exist
+    os.makedirs('logs', exist_ok=True)
+
+    # File handler without colors
     fh = FileHandler("logs/app.log")
     fh.setLevel(logging.INFO)
     fh.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))

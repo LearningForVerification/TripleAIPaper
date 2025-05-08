@@ -3,8 +3,6 @@ from typing import Any
 import cProfile
 import pstats
 
-import torch
-from auto_LiRPA import BoundedModule, PerturbationLpNorm, BoundedTensor
 from torch import nn, Tensor
 
 from src.lirpa_test.logger import  setup_logger
@@ -30,10 +28,10 @@ class ModelTrainingManager_Shallow(ModelTrainingManager):
         super().__init__(*args, **kwargs)
 
     def get_rsloss(self, model: nn.Module, model_ref, architecture_tuple: tuple, input_batch: Tensor,
-                   perturbation: float, method='ibp') -> tuple[Any, Any]:
+                   perturbation, eps, method='ibp') -> tuple[Any, Any]:
         # Input perturbed bounds
-        input_lb = input_batch - perturbation
-        input_ub = input_batch + perturbation
+        input_lb = input_batch - eps
+        input_ub = input_batch + eps
 
 
         rs_loss, n_unstable_nodes = calculate_rs_loss_regularizer_fc(model_ref, architecture_tuple[1], input_lb, input_ub, normalized=True)

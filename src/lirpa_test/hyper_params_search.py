@@ -8,19 +8,14 @@ from src.lirpa_test.regularized_trainer import ModelTrainingManager
 from utils.dataset import get_dataset, get_data_loader, get_data_loader_testing
 from utils.utils import load_yaml_config, write_results_on_csv, save_models
 from src.lirpa_test import REFINEMENT_PERCENTAGE, REFINEMENT_CYCLE_LENGTH, NUMBER_OF_CYCLES, NUM_EPOCHS, NOISE, \
-    ACCURACY_THRESHOLD,RS_LOSS_FIRST_NN
-
-RESULTS_FOLDER = "NETWORKS"
-CSV_FILE = os.path.join(RESULTS_FOLDER, "results.csv")
-BACKUP_FOLDER = os.path.join(RESULTS_FOLDER, "BACKUP")
-device = "cuda" if torch.cuda.is_available() else "cpu"
+    ACCURACY_THRESHOLD,RS_LOSS_FIRST_NN, RESULTS_FOLDER, CSV_FILE_ALL_CANDIDATES, CSV_FILE_BEST_CANDIDATES, BACKUP_FOLDER, device
 
 
 def _generate_model(model_cls, candidates_network_archs):
     to_ret_list = list()
     for tuple_ in candidates_network_archs:
         model = model_cls(*tuple_)
-        to_ret_list.append(model.to(device))
+        to_ret_list.append(model)
 
     return to_ret_list
 
@@ -41,21 +36,22 @@ class BinaryHyperParamsResearch:
         self.config = load_yaml_config(config_file_path
                                        )
 
-        self.train_data_loader, self.test_data_loader, self.dummy_input, self.input_dim, self.output_dim = (
-            get_data_loader(dataset_name, train_batch_dim, test_batch_dim))
+        self.train_data_loader, self.test_data_loader, self.dummy_input, self.input_dim, self.output_dim = get_data_loader(dataset_name, train_batch_dim, test_batch_dim, input_flattened=False)
 
         self.metrics_collection = list()
         self.model_collection = list()
-        self.save_folder = os.path.join(RESULTS_FOLDER, dataset_name)
-        self.csv_file_path = CSV_FILE
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.save_folder_best_candidates = os.path.join(RESULTS_FOLDER, dataset_name, "best_models")
+        self.save_folder_all_candidates = os.path.join(RESULTS_FOLDER, dataset_name, "all_models")
+        self.csv_file_path_best_candidates = CSV_FILE_BEST_CANDIDATES
+        self.csv_file_path_all_candidates = CSV_FILE_ALL_CANDIDATES
+        self.device = device
 
         self.logger = logging.getLogger(__name__)
         self.logger.info(f"Device: {self.device}")
 
-    def binary_search(self, limit_min_increment, limit_max_increment, steps_limit, trainer_manager, starting_rs_factor=0):
+    def binary_search(self, limit_min_increment, limit_max_increment, steps_limit, trainer_manager):
         # Rs lambda for the smallest network, this values has to increase
-        rs_factor = starting_rs_factor
+        rs_factor = RS_LOSS_FIRST_NN
 
         # Get baseline model and metrics 
         first_model = self.models.pop(0)
@@ -79,8 +75,8 @@ class BinaryHyperParamsResearch:
                                                                                                      eps=NOISE)
 
         # Save baseline results
-        save_models(baseline_model_ref, baseline_model_ref.identifier, self.save_folder, self.device, self.dummy_input)
-        write_results_on_csv(self.csv_file_path, baseline_metrics)
+        save_models(baseline_model_ref, baseline_model_ref.identifier, self.save_folder_best_candidates, self.device, self.dummy_input)
+        write_results_on_csv(self.csv_file_path_best_candidates, baseline_metrics)
 
         self.logger.info(f"Minimum Accuracy and Unstable Nodes threshold set by baseline model's results with architecture {first_model_arch}:")
 
@@ -133,11 +129,11 @@ class BinaryHyperParamsResearch:
 
                 if metrics['test_unstable_nodes'] > to_beat_metric[2]['test_unstable_nodes']:
                     self.logger.info(
-                        f"Model {idx} needs refinement - current unstable nodes: {metrics['test_unstable_nodes']} \n"
-                        f"Refining attempt")
+                        f"Model {idx} needs refinement - current unstable nodes: {metrics['test_unstable_nodes']}  --- Refining attempt")
                     # Save model state dict
+                    backup_temp_model_path = os.path.join(BACKUP_FOLDER, 'model_' + str(idx) + '_state.pth')
                     save(model_ref.state_dict(),
-                         os.path.join(BACKUP_FOLDER, 'model_' + str(idx) + '_state.pth'))
+                         backup_temp_model_path)
                     success_flag, refined_metrics, refined_model, refined_ref_model = model_training_manager.refinement_training(
                         model_untr,
                         model_untr.get_shape(),
@@ -145,7 +141,7 @@ class BinaryHyperParamsResearch:
                         self.config,
                         initial_rsloss_lambda=rs_factor + increment,
                         eps=NOISE,
-                        model_path=os.path.join(BACKUP_FOLDER, 'model_' + str(idx) + '_state.pth')
+                        model_path=backup_temp_model_path
                     )
 
                     if success_flag:
@@ -154,6 +150,10 @@ class BinaryHyperParamsResearch:
                             model = refined_model
                             model_ref = refined_ref_model
                             metrics = refined_metrics
+
+                # Saving the model whatever its performances
+                save_models(model_ref, model_ref.identifier + '_'+ str(metrics['lambda']), self.save_folder_all_candidates, self.device, self.dummy_input)
+                write_results_on_csv(self.csv_file_path_all_candidates, metrics)
 
                 # Check if model improved accuracy
                 if metrics['test_accuracy'] + ACCURACY_THRESHOLD >= previous_accuracy:
@@ -194,13 +194,13 @@ class BinaryHyperParamsResearch:
                 previous_unstable_nodes = metrics['test_unstable_nodes']
 
                 # Save results
-                save_models(model_ref, model_ref.identifier, self.save_folder, self.device, self.dummy_input)
-                write_results_on_csv(CSV_FILE, metrics)
+                save_models(model_ref, model_ref.identifier, self.save_folder_best_candidates, self.device, self.dummy_input)
+                write_results_on_csv(CSV_FILE_BEST_CANDIDATES, metrics)
                 rs_factor = target_rs_loss
 
                 self.logger.info(f"Accuracy of network with {idx} has set the accuracy minimum to {previous_accuracy}")
-                self.logger.debug(f"Metrics: {metrics}")
+
 
             else:
                 self.logger.info(f"Network with {idx} filters has failed.")
-            self.logger.debug(f"Current best models: {best_models_dict}")
+

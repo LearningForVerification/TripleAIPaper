@@ -3,8 +3,6 @@ from typing import Any
 import cProfile
 import pstats
 
-import torch
-from auto_LiRPA import BoundedModule, PerturbationLpNorm, BoundedTensor
 from torch import nn, Tensor
 
 from src.lirpa_test.logger import  setup_logger
@@ -13,7 +11,7 @@ import logging
 from src.lirpa_test.hyper_params_search import BinaryHyperParamsResearch
 from src.lirpa_test.nn_models import CustomConvNN
 from src.lirpa_test.regularized_trainer import ModelTrainingManager
-from utils.rs_loss_regularizer import  calculate_rs_loss_regularizer_fc
+from utils.rs_loss_regularizer import calculate_rs_loss_regularizer_conv
 
 DEBUG = False
 min_increment = 0.1
@@ -30,26 +28,22 @@ class ModelTrainingManager_Shallow(ModelTrainingManager):
         super().__init__(*args, **kwargs)
 
     def get_rsloss(self, model: nn.Module, model_ref, architecture_tuple: tuple, input_batch: Tensor,
-                   perturbation: float, method='ibp') -> tuple[Any, Any]:
-        # Input perturbed bounds
-        input_lb = input_batch - perturbation
-        input_ub = input_batch + perturbation
+                   perturbation, eps:float, method='ibp') -> tuple[Any, Any]:
 
-
-        rs_loss, n_unstable_nodes = calculate_rs_loss_regularizer_fc(model_ref, architecture_tuple[1], input_lb, input_ub, normalized=True)
+        rs_loss, n_unstable_nodes = calculate_rs_loss_regularizer_conv(model, architecture_tuple, input_batch, perturbation, method='Forward', normalized=True)
 
         return rs_loss, n_unstable_nodes
 
 
 
 def main():
-    input_dim = 784
+    input_dim = 28
     output_dim = 10
     kernel_size = 3
     stride = 1
-    padding = 1
-    conv_filters_dim = [30, 50, 100, 200, 500, 1000, 2000, 4000, 8000, 10000]
-    fc_layers_dim = [10,20,30,40,50,60,70,80,90,100]
+    padding = 0
+    conv_filters_dim = [64,8, 16,24,32, 64,]
+    fc_layers_dim = [40,40, 40, 40,40,40,]
     arch_tuple = [(input_dim, output_dim, conv_filters_dim[index], kernel_size, stride, padding, fc_layers_dim[index]) for index, x in enumerate(conv_filters_dim)]
 
     config_file_path = "config_one_layered_full_dataset.yaml"

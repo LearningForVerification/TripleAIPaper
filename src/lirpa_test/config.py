@@ -19,4 +19,9 @@ ACCURACY_THRESHOLD = config.getfloat('DEFAULT', 'accuracy_threshold')
 RS_LOSS_FIRST_NN = config.getfloat('DEFAULT', 'rs_loss_first_nn')
 VALIDATION_FREQUENCY = config.getint('DEFAULT', 'validation_frequency')
 
+RESULTS_FOLDER = "NETWORKS"
+CSV_FILE_BEST_CANDIDATES = os.path.join(RESULTS_FOLDER, "results_best_candidates.csv")
+CSV_FILE_ALL_CANDIDATES = os.path.join(RESULTS_FOLDER, "results_all_candidates.csv")
+BACKUP_FOLDER = os.path.join(RESULTS_FOLDER, "BACKUP")
+
 DEBUG = config.getboolean('DEFAULT', 'debug')
