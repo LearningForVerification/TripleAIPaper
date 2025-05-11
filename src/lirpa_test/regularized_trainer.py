@@ -152,20 +152,20 @@ class ModelTrainingManager(ABC):
             if epoch % VALIDATION_FREQUENCY == 0 and epoch != 0:
                 self.logger.debug(f"Evaluating model on test set at epoch {epoch + 1}/{num_epochs}")
                 test_accuracy, _, _, _, test_unstable_nodes = self.calculate_accuracy_and_loss(
-                    model, model_ref, arch_tuple, criterion, num_classes, rsloss_lambda=rsloss_lambda,
+                    model, model_ref, optimizer, arch_tuple, criterion, num_classes, rsloss_lambda=rsloss_lambda,
                     train_set=False, eps=eps)
 
 
         # Calculate final metrics
         test_accuracy, test_loss, partial_loss_test, partial_rsloss_test, test_unstable_nodes = self.calculate_accuracy_and_loss(
-            model, model_ref, arch_tuple, criterion, num_classes, rsloss_lambda=rsloss_lambda, train_set=False, eps=eps)
+            model, model_ref,  arch_tuple, criterion, num_classes, rsloss_lambda=rsloss_lambda, train_set=False, eps=eps)
         train_accuracy, train_loss, partial_loss_train, partial_rsloss_train, train_unstable_nodes = self.calculate_accuracy_and_loss(
-            model, model_ref, arch_tuple, criterion, num_classes, rsloss_lambda=rsloss_lambda, train_set=True, eps=eps)
+            model, model_ref,  arch_tuple, criterion, num_classes, rsloss_lambda=rsloss_lambda, train_set=True, eps=eps)
 
         # TEST that the original nn.Module has the same 
         model_ref_bounded = BoundedModule(model_ref, dummy_input, device=self.device)
         test_accuracy__DEBUG, test_loss__DEBUG, partial_loss_test__DEBUG, partial_rsloss_test__DEBUG, test_unstable_nodes__DEBUG = self.calculate_accuracy_and_loss(
-            model_ref_bounded, model_ref, arch_tuple, criterion, num_classes, rsloss_lambda=rsloss_lambda, train_set=False,
+            model_ref_bounded, model_ref,  arch_tuple, criterion, num_classes, rsloss_lambda=rsloss_lambda, train_set=False,
             eps=eps)
         train_accuracy__DEBUG, train_loss__DEBUG, partial_loss_train__DEBUG, partial_rsloss_train__DEBUG, train_unstable_nodes__DEBUG = self.calculate_accuracy_and_loss(
             model_ref_bounded, model_ref, arch_tuple, criterion, num_classes, rsloss_lambda=rsloss_lambda, train_set=True, eps=eps)
@@ -237,7 +237,7 @@ class ModelTrainingManager(ABC):
         model = BoundedModule(model_ref, dummy_input,
                               device=self.device)
 
-        # Start with initial lambda
+        # Start with the initial lambda
         rsloss_lambda = initial_rsloss_lambda * (1 + self.refinement_percentage)
         success = False
         #
@@ -327,7 +327,7 @@ class ModelTrainingManager(ABC):
         if success:
             # Calculate final metrics
             test_accuracy, test_loss, partial_loss_test, partial_rsloss_test, test_unstable_nodes = self.calculate_accuracy_and_loss(
-                model, model_ref, arch_tuple, criterion, num_classes, rsloss_lambda=rsloss_lambda, train_set=False,
+                model, model_ref,optimizer, arch_tuple, criterion, num_classes, rsloss_lambda=rsloss_lambda, train_set=False,
                 eps=eps)
             train_accuracy, train_loss, partial_loss_train, partial_rsloss_train, train_unstable_nodes = self.calculate_accuracy_and_loss(
                 model, model_ref, arch_tuple, criterion, num_classes, rsloss_lambda=rsloss_lambda, train_set=True, eps=eps)
@@ -498,6 +498,16 @@ class ModelTrainingManager(ABC):
 
     def _train_epoch_and_get_stats(self, model, model_ref, device, arch_tuple, optimizer, criterion, num_classes, rsloss_lambda, eps):
         model.train()
+
+        """Enable memory optimizations for the model"""
+        if hasattr(model, 'gradient_checkpointing_enable'):
+            model.gradient_checkpointing_enable()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        # Inizializza GradScaler per mixed precision training
+        scaler = torch.cuda.amp.GradScaler()
+
         running_train_loss = running_train_loss_1 = running_train_loss_2 = 0.0
         correct_train = total_train = 0
         perturbation = PerturbationLpNorm(norm=np.inf, eps=eps)
@@ -506,6 +516,8 @@ class ModelTrainingManager(ABC):
         for index, (inputs, targets) in enumerate(self.train_data_loader):
             inputs, targets = inputs.to(device).to(torch.float32), targets.to(device)
             targets = targets.long()
+
+            optimizer.zero_grad()
             outputs = model(inputs)
 
             # Calculate losses
@@ -514,24 +526,32 @@ class ModelTrainingManager(ABC):
                 loss = criterion(outputs, targets_hot)
             else:
                 loss = criterion(outputs, targets)
-            partial_loss_1 = loss.item()
-            rsloss_result, unstable_nodes = self.get_rsloss(model, model_ref, arch_tuple, inputs, perturbation, eps)
-            partial_loss_2 = rsloss_result
+            ce_loss = loss.item()
+
+            # Backward pass con scaling
+            with torch.cuda.amp.autocast():
+                rsloss, unstable_nodes = self.get_rsloss(model=model, model_ref=model_ref, architecture_tuple=arch_tuple, input_batch=inputs, perturbation=perturbation, eps=eps)
+
+
             train_unstable_nodes += unstable_nodes
-            total_loss = loss + rsloss_lambda * partial_loss_2
+            total_loss = loss + rsloss_lambda * rsloss
 
             # Optimize
-            optimizer.zero_grad()
-            total_loss.backward()
-            optimizer.step()
+            scaler.scale(total_loss).backward()
+
+            # Unscale gradients e clip
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            scaler.step(optimizer)
+            scaler.update()
 
             # Track metrics
             _, predicted = torch.max(outputs.data, 1)
             total_train += targets.size(0)
             correct_train += (predicted == targets).sum().item()
             running_train_loss += total_loss.item()
-            running_train_loss_1 += partial_loss_1
-            running_train_loss_2 += partial_loss_2.item()
+            running_train_loss_1 += ce_loss
+            running_train_loss_2 += rsloss.item()
 
         # Calculate epoch statistics
         dataset_size = len(self.train_data_loader)

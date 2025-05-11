@@ -1,11 +1,10 @@
-from datetime import time
 from typing import Any
 import cProfile
 import pstats
 
 from torch import nn, Tensor
 
-from src.lirpa_test.logger import  setup_logger
+from src.lirpa_test.logger import setup_logger
 import logging
 
 from src.lirpa_test.hyper_params_search import BinaryHyperParamsResearch
@@ -23,17 +22,16 @@ logger = logging.getLogger(__name__)
 logger.info("Applicazione avviata")
 
 
-class ModelTrainingManager_Shallow(ModelTrainingManager):
+class ModelTrainingManagerConv(ModelTrainingManager):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     def get_rsloss(self, model: nn.Module, model_ref, architecture_tuple: tuple, input_batch: Tensor,
-                   perturbation, eps:float, method='ibp') -> tuple[Any, Any]:
-
-        rs_loss, n_unstable_nodes = calculate_rs_loss_regularizer_conv(model, architecture_tuple, input_batch, perturbation, method='Forward', normalized=True)
+                   perturbation, eps: float, method='ibp') -> tuple[Any, Any]:
+        rs_loss, n_unstable_nodes = calculate_rs_loss_regularizer_conv(model, architecture_tuple, input_batch,
+                                                                       perturbation, method=method, normalized=True)
 
         return rs_loss, n_unstable_nodes
-
 
 
 def main():
@@ -42,14 +40,15 @@ def main():
     kernel_size = 3
     stride = 1
     padding = 0
-    conv_filters_dim = [64,8, 16,24,32, 64,]
-    fc_layers_dim = [40,40, 40, 40,40,40,]
-    arch_tuple = [(input_dim, output_dim, conv_filters_dim[index], kernel_size, stride, padding, fc_layers_dim[index]) for index, x in enumerate(conv_filters_dim)]
+    conv_filters_dim = [128, 8, 16, 24, 32, 64, ]
+    fc_layers_dim = [40, 40, 40, 40, 40, 40, ]
+    arch_tuple = [(input_dim, output_dim, conv_filters_dim[index], kernel_size, stride, padding, fc_layers_dim[index])
+                  for index, x in enumerate(conv_filters_dim)]
 
     config_file_path = "config_one_layered_full_dataset.yaml"
     hyper_params_search = BinaryHyperParamsResearch(CustomConvNN, config_file_path, "FMNIST",
                                                     arch_tuple)
-    hyper_params_search.binary_search(min_increment, max_increment, steps_limit, ModelTrainingManager_Shallow)
+    hyper_params_search.binary_search(min_increment, max_increment, steps_limit, ModelTrainingManagerConv)
 
 
 if __name__ == "__main__":

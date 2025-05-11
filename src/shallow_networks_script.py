@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 logger.info("Applicazione avviata")
 
 
-class ModelTrainingManager_Shallow(ModelTrainingManager):
+class ModelTrainingManagerShallow(ModelTrainingManager):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -47,7 +47,7 @@ def main():
     config_file_path = "config_one_layered_full_dataset.yaml"
     hyper_params_search = BinaryHyperParamsResearch(CustomFCNN, config_file_path, "MNIST",
                                                     hidden_layers_dim)
-    hyper_params_search.binary_search(min_increment, max_increment, steps_limit, ModelTrainingManager_Shallow)
+    hyper_params_search.binary_search(min_increment, max_increment, steps_limit, ModelTrainingManagerShallow)
 
 
 if __name__ == "__main__":

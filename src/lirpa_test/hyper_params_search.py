@@ -172,7 +172,7 @@ class BinaryHyperParamsResearch:
                     # Check if stability improved
                     if previous_unstable_nodes is not None:
                         if metrics['test_unstable_nodes'] < previous_unstable_nodes:
-                            self.logger.info(f"Model {idx} achieved better stability - breaking search")
+                            self.logger.info(f"Model {idx} achieved better stability - stopping search")
                             break
 
                 else:  # Accuracy decreased

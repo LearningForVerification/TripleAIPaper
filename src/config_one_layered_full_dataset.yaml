@@ -4,8 +4,8 @@ architecture: "Neural Network"          # Name of the network architecture
 
 # Training Configuration
 training:
-  train_batch_size: 64           # Batch size for training
-  test_batch_size: 32           # Batch size for training
+  train_batch_size: 64        # Batch size for training
+  test_batch_size: 64          # Batch size for training
   validation_batch_size: 64
   validation_percentage: 0.2
   loss_name: "CrossEntropyLoss"
