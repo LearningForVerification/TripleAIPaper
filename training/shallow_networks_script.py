@@ -1,16 +1,25 @@
+import argparse
+import os
 from datetime import time
 from typing import Any
 import cProfile
 import pstats
+import os
+import sys
 
+# Add parent directory and current directory to the system path
+current_directory = os.getcwd()
+parent_directory = os.path.dirname(current_directory)
+sys.path.insert(0, current_directory)
+sys.path.insert(0, parent_directory)
 from torch import nn, Tensor
 
-from src.lirpa_test.logger import  setup_logger
+from training.utils.logger import  setup_logger
 import logging
 
-from src.lirpa_test.hyper_params_search import BinaryHyperParamsResearch
-from src.lirpa_test.nn_models import CustomFCNN
-from src.lirpa_test.regularized_trainer import ModelTrainingManager
+from training.hyper_params_search import BinaryHyperParamsResearch
+from training.utils.nn_models import CustomFCNN
+from training.regularized_trainer import ModelTrainingManager
 from utils.rs_loss_regularizer import  calculate_rs_loss_regularizer_fc
 
 DEBUG = False
@@ -38,17 +47,21 @@ class ModelTrainingManagerShallow(ModelTrainingManager):
 
         return rs_loss, n_unstable_nodes
 
-
-
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dataset_name', type=str, required=True, choices=['MNIST', 'FMNIST'],
+                        help='Dataset name (MNIST or FMNIST)')
+    args = parser.parse_args()
+
+    dataset_name = args.dataset_name
+
     hidden_layers_dim = [30, 50, 100, 200, 500, 1000, 2000, 4000, 8000, 10000]
     hidden_layers_dim = [(784, x, 10) for x in hidden_layers_dim]
 
     config_file_path = "config_one_layered_full_dataset.yaml"
-    hyper_params_search = BinaryHyperParamsResearch(CustomFCNN, config_file_path, "MNIST",
+    hyper_params_search = BinaryHyperParamsResearch(CustomFCNN, config_file_path, dataset_name,
                                                     hidden_layers_dim)
     hyper_params_search.binary_search(min_increment, max_increment, steps_limit, ModelTrainingManagerShallow)
-
 
 if __name__ == "__main__":
     setup_logger()

@@ -4,10 +4,10 @@ import logging
 import torch
 from torch import save
 
-from src.lirpa_test.regularized_trainer import ModelTrainingManager
+from training.regularized_trainer import ModelTrainingManager
 from utils.dataset import get_dataset, get_data_loader, get_data_loader_testing
 from utils.utils import load_yaml_config, write_results_on_csv, save_models
-from src.lirpa_test import REFINEMENT_PERCENTAGE, REFINEMENT_CYCLE_LENGTH, NUMBER_OF_CYCLES, NUM_EPOCHS, NOISE, \
+from training import REFINEMENT_PERCENTAGE, REFINEMENT_CYCLE_LENGTH, NUMBER_OF_CYCLES, NUM_EPOCHS, NOISE, \
     ACCURACY_THRESHOLD,RS_LOSS_FIRST_NN, RESULTS_FOLDER, CSV_FILE_ALL_CANDIDATES, CSV_FILE_BEST_CANDIDATES, BACKUP_FOLDER, device
 
 
@@ -33,9 +33,7 @@ class BinaryHyperParamsResearch:
     def __init__(self, model_cls, config_file_path, dataset_name, candidates_network_archs, train_batch_dim=128,
                  test_batch_dim=64):
         self.models = _generate_model(model_cls, candidates_network_archs)
-        self.config = load_yaml_config(config_file_path
-                                       )
-
+        self.config = load_yaml_config(config_file_path)
         self.train_data_loader, self.test_data_loader, self.dummy_input, self.input_dim, self.output_dim = get_data_loader(dataset_name, train_batch_dim, test_batch_dim, input_flattened=False)
 
         self.metrics_collection = list()
@@ -47,7 +45,7 @@ class BinaryHyperParamsResearch:
         self.device = device
 
         self.logger = logging.getLogger(__name__)
-        self.logger.info(f"Device: {self.device}")
+        self.logger.info("Device: %s", self.device)
 
     def binary_search(self, limit_min_increment, limit_max_increment, steps_limit, trainer_manager):
         # Rs lambda for the smallest network, this values has to increase
@@ -78,17 +76,18 @@ class BinaryHyperParamsResearch:
         save_models(baseline_model_ref, baseline_model_ref.identifier, self.save_folder_best_candidates, self.device, self.dummy_input)
         write_results_on_csv(self.csv_file_path_best_candidates, baseline_metrics)
 
-        self.logger.info(f"Minimum Accuracy and Unstable Nodes threshold set by baseline model's results with architecture {first_model_arch}:")
+        self.logger.info("Minimum Accuracy and Unstable Nodes threshold set by baseline model's results with architecture %s:", first_model_arch)
 
         # Initialize tracking variables
         previous_accuracy = baseline_metrics['test_accuracy']
         previous_unstable_nodes = baseline_metrics['test_unstable_nodes']
         best_models_dict = {baseline_model_ref.identifier: [
-            (baseline_model, baseline_model_ref, baseline_metrics)]}  # Collects models that improved stability
+            (baseline_model, baseline_model_ref, baseline_metrics)]}
+        print(best_models_dict.keys())# Collects models that improved stability
 
         # Evaluate remaining models
         for idx, model_untr in enumerate(self.models):
-            self.logger.info(f"Training and refining the {idx}-th model")
+            self.logger.info("Training and refining the %d-th model", idx)
 
             # Initialize search parameters
             min_increment = limit_min_increment
@@ -103,8 +102,9 @@ class BinaryHyperParamsResearch:
             while steps_counter <= steps_limit:
                 # Metrica da battere del precedente modello di dimensione inferiore andato a buon fine
                 to_beat_metric = _get_min_index_and_value(best_models_dict[list(best_models_dict.keys())[-1]])
+                print(to_beat_metric)
 
-                self.logger.info(f"Iteration {steps_counter}")
+                self.logger.info("Iteration %d", steps_counter)
 
                 # Train model with current parameters
                 model_training_manager = trainer_manager(
@@ -128,8 +128,8 @@ class BinaryHyperParamsResearch:
                 )
 
                 if metrics['test_unstable_nodes'] > to_beat_metric[2]['test_unstable_nodes']:
-                    self.logger.info(
-                        f"Model {idx} needs refinement - current unstable nodes: {metrics['test_unstable_nodes']}  --- Refining attempt")
+                    self.logger.info("Model %d needs refinement - current unstable nodes: %f --- Refining attempt",
+                                   idx, metrics['test_unstable_nodes'])
                     # Save model state dict
                     backup_temp_model_path = os.path.join(BACKUP_FOLDER, 'model_' + str(idx) + '_state.pth')
                     save(model_ref.state_dict(),
@@ -146,7 +146,7 @@ class BinaryHyperParamsResearch:
 
                     if success_flag:
                         if refined_metrics['test_unstable_nodes'] < metrics['test_unstable_nodes']:
-                            self.logger.info(f"Refinement successful for model {idx}")
+                            self.logger.info("Refinement successful for model %d", idx)
                             model = refined_model
                             model_ref = refined_ref_model
                             metrics = refined_metrics
@@ -172,7 +172,7 @@ class BinaryHyperParamsResearch:
                     # Check if stability improved
                     if previous_unstable_nodes is not None:
                         if metrics['test_unstable_nodes'] < previous_unstable_nodes:
-                            self.logger.info(f"Model {idx} achieved better stability - stopping search")
+                            self.logger.info("Model %d achieved better stability - stopping search", idx)
                             break
 
                 else:  # Accuracy decreased
@@ -198,9 +198,8 @@ class BinaryHyperParamsResearch:
                 write_results_on_csv(CSV_FILE_BEST_CANDIDATES, metrics)
                 rs_factor = target_rs_loss
 
-                self.logger.info(f"Accuracy of network with {idx} has set the accuracy minimum to {previous_accuracy}")
+                self.logger.info("Accuracy of network with %d has set the accuracy minimum to %f", idx, previous_accuracy)
 
 
             else:
-                self.logger.info(f"Network with {idx} filters has failed.")
-
+                self.logger.info("Network with %d filters has failed.", idx)

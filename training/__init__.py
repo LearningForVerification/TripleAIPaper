@@ -13,7 +13,9 @@ from .config import (
     RESULTS_FOLDER,
     CSV_FILE_BEST_CANDIDATES,
     CSV_FILE_ALL_CANDIDATES,
-    BACKUP_FOLDER
+    BACKUP_FOLDER,
+    LAMBDA_LR_CYCLE,
+    CONV_RSLOSS_LAMBDA_MULTIPLIER
 )
 
 device = "cuda" if torch.cuda.is_available() else "cpu"

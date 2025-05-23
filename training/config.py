@@ -23,5 +23,7 @@ RESULTS_FOLDER = "NETWORKS"
 CSV_FILE_BEST_CANDIDATES = os.path.join(RESULTS_FOLDER, "results_best_candidates.csv")
 CSV_FILE_ALL_CANDIDATES = os.path.join(RESULTS_FOLDER, "results_all_candidates.csv")
 BACKUP_FOLDER = os.path.join(RESULTS_FOLDER, "BACKUP")
+LAMBDA_LR_CYCLE = config.getint('DEFAULT', 'lambda_lr_cycle')
+CONV_RSLOSS_LAMBDA_MULTIPLIER = config.getfloat('DEFAULT', 'conv_rsloss_lambda_multiplier')
 
 DEBUG = config.getboolean('DEFAULT', 'debug')
