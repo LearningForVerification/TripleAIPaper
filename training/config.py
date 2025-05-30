@@ -25,5 +25,6 @@ CSV_FILE_ALL_CANDIDATES = os.path.join(RESULTS_FOLDER, "results_all_candidates.c
 BACKUP_FOLDER = os.path.join(RESULTS_FOLDER, "BACKUP")
 LAMBDA_LR_CYCLE = config.getint('DEFAULT', 'lambda_lr_cycle')
 CONV_RSLOSS_LAMBDA_MULTIPLIER = config.getfloat('DEFAULT', 'conv_rsloss_lambda_multiplier')
-
+FIXED_LR = config.getboolean('DEFAULT', 'fixed_lr')
+LR_DECAY = config.getfloat('DEFAULT', 'lr_decay')
 DEBUG = config.getboolean('DEFAULT', 'debug')

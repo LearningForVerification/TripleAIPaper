@@ -14,10 +14,13 @@ def get_dataset(dataset_name, input_flattened = True):
 
         if input_flattened:
             dummy_input = torch.randn(1, 1, 784)
+            transform = transforms.Compose([transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))])
+
         else:
             dummy_input = torch.randn(1, 1, 28, 28)
+            transform = transforms.Compose([transforms.ToTensor()])
 
-        transform = transforms.Compose([transforms.ToTensor()])
+        transform = transforms.Compose([transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))])
         train_set = datasets.MNIST(root=DATASET_DIRECTORY
                                    , train=True, download=True, transform=transform)
         test_set = datasets.MNIST(root=DATASET_DIRECTORY
@@ -29,8 +32,10 @@ def get_dataset(dataset_name, input_flattened = True):
 
         if input_flattened:
             dummy_input = torch.randn(1, 1, 784)
+            transform = transforms.Compose([transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))])
         else:
             dummy_input = torch.randn(1, 1, 28, 28)
+            transform = transforms.Compose([transforms.ToTensor()])
 
         transform = transforms.Compose([transforms.ToTensor()])
         train_set = datasets.FashionMNIST(root=DATASET_DIRECTORY
@@ -44,8 +49,12 @@ def get_dataset(dataset_name, input_flattened = True):
 
         if input_flattened:
             dummy_input = torch.randn(1, 1, 3*32*32)
+            transform = transforms.Compose([transforms.ToTensor()])
+
         else:
             dummy_input = torch.randn(1, 3, 32, 32)
+            transform = transforms.Compose([transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))])
+
 
         normalize = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010])
         transform = transforms.Compose([

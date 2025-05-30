@@ -15,7 +15,7 @@ from torch import optim
 from torch.nn import Module
 from torch.utils.data import DataLoader
 
-from training import VALIDATION_FREQUENCY, ACCURACY_THRESHOLD, LAMBDA_LR_CYCLE, DEBUG
+from training import VALIDATION_FREQUENCY, ACCURACY_THRESHOLD, LAMBDA_LR_CYCLE, FIXED_LR, LR_DECAY, DEBUG
 
 
 class ModelTrainingManager(ABC):
@@ -118,8 +118,11 @@ class ModelTrainingManager(ABC):
         optimizer = optimizer_cls(model.parameters(), **opt_params)
         criterion = criterion_cls()
 
-        # Fattore di decadimento: -1% ogni 400 epoche
-        lambda_lr = lambda epoch: 0.99 ** (epoch // LAMBDA_LR_CYCLE)
+        if FIXED_LR:
+            lambda_lr = lambda epoch: 1.0
+        else:
+            # Fattore di decadimento: -1% ogni 400 epoche
+            lambda_lr = lambda epoch: LR_DECAY ** (epoch // LAMBDA_LR_CYCLE)
 
         # Classe dello scheduler
         scheduler_lr_cls = torch.optim.lr_scheduler.LambdaLR

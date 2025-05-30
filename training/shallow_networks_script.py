@@ -56,6 +56,7 @@ def main():
     dataset_name = args.dataset_name
 
     hidden_layers_dim = [30, 50, 100, 200, 500, 1000, 2000, 4000, 8000, 10000]
+    hidden_layers_dim=[200]
     hidden_layers_dim = [(784, x, 10) for x in hidden_layers_dim]
 
     config_file_path = "config_one_layered_full_dataset.yaml"

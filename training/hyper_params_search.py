@@ -102,7 +102,6 @@ class BinaryHyperParamsResearch:
             while steps_counter <= steps_limit:
                 # Metrica da battere del precedente modello di dimensione inferiore andato a buon fine
                 to_beat_metric = _get_min_index_and_value(best_models_dict[list(best_models_dict.keys())[-1]])
-                print(to_beat_metric)
 
                 self.logger.info("Iteration %d", steps_counter)
 
