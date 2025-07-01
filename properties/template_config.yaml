@@ -1,10 +1,9 @@
 general:
-
-  device: cuda
+  device: cpu
   seed: 100
-  conv_mode: patches
-  enable_incomplete_verification: false
-  complete_verifier: bab
+  enable_incomplete_verification: true
+  complete_verifier: mip
+
   results_file: out.txt
   output_file: out.pkl
 
@@ -16,10 +15,3 @@ specification:
   vnnlib_path: "{{ vnnlib_path }}"
   norm: .inf
 
-solver:
-  alpha-crown:
-    # Number of iterations for alpha-CROWN incomplete verifier.
-    iteration: 10
-attack:
-  # Early stop PGD when an adversarial example is found.
-  pgd_early_stop: true

@@ -9,6 +9,8 @@ sys.path.insert(0, parent_directory)
 sys.path.insert(0, current_directory)
 sys.path.insert(0, training_path)
 
+import torch.multiprocessing
+torch.multiprocessing.set_sharing_strategy('file_system')
 
 import onnxruntime as ort
 import numpy as np
@@ -32,7 +34,7 @@ sys.path.insert(0, training_path)
 import torch
 from torch.utils.data import Dataset, DataLoader
 import json
-TIMEOUT = 300
+TIMEOUT = 20
 
 class VerifiedDataset(Dataset):
     def __init__(self, samples, labels, max_eps=None, transform=None):
@@ -65,14 +67,16 @@ def setup_dataset():
             DATASET_NAME,
             train_batch_size=1,
             test_batch_size=1,
-            input_flattened=True
+            input_flattened=True,
+            num_workers=4
         )
     elif DATASET_NAME == "FMNIST":
         train_loader, test_loader, dummy_input, input_dim, output_dim = get_data_loader(
             DATASET_NAME,
             train_batch_size=1,
             test_batch_size=1,
-            input_flattened=True
+            input_flattened=True,
+            num_workers=4
         )
     else:
         raise ValueError("Unsupported dataset.")
@@ -133,9 +137,9 @@ def verify_property(model_path, property_file_path):
     cmd = [
         sys.executable,
         "complete_verifier/abcrown.py",
-        "--config", config_path
+        "--config", config_path,
+        "--pgd_order", "skip"
     ]
-
     process = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT)
     if process.returncode != 0:
         print(f"Process output: {process.stdout}")
@@ -166,9 +170,6 @@ def generate_local_robustness_property(input_sample, noise_level, correct_label,
         filename: Name of file to save property
     """
 
-
-    if os.path.exists(PROPERTY_FOLDER):
-        print("Property folder exists")
 
     with open(property_path, 'w') as f:
         # Declare input variables 
@@ -243,14 +244,14 @@ def save_verified_dataset(samples_eps_list, correct_samples_list, correct_labels
     
 def load_verified_dataset(dataset_dir, batch_size=32, shuffle=True):
     # Carica il dataset PyTorch
-    torch_path = os.path.join(dataset_dir, f"verified_dataset.pt")
+    torch_path = os.path.join(dataset_dir, f"verified_MNIST_dataset.pt")
     data = torch.load(torch_path)
     samples = data['samples']
     labels = data['labels']
     max_eps_dict = data['max_verified_eps']  # Load max eps for each sample
 
     # Carica i metadati
-    metadata_path = os.path.join(dataset_dir, f"verified_metadata.json")
+    metadata_path = os.path.join(dataset_dir, f"verified_MNIST_metadata.json")
     with open(metadata_path, 'r') as f:
         metadata = json.load(f)
 
@@ -261,6 +262,7 @@ def load_verified_dataset(dataset_dir, batch_size=32, shuffle=True):
     dataloader = DataLoader(dataset,
                             batch_size=batch_size,
                             shuffle=shuffle)
+    return dataloader, metadata
 
 if __name__ == '__main__':
     # Parse command line arguments
@@ -303,7 +305,7 @@ if __name__ == '__main__':
         os.makedirs(property_dir)
 
     for model_path in models_path:
-        print(f"\nProcessing model...")
+        print(f"\nProcessing model {model_path}...")
         model_name = os.path.basename(model_path).split('.')[0]
         model_property_dir = os.path.join(property_dir, model_name)
 
@@ -345,15 +347,16 @@ if __name__ == '__main__':
                 print(f"Error during property verification: {str(e)}")
                 success = False
                 break
-            # if is_sat == True then the property is violated
-            if is_sat:
+
+            if  is_sat:
                 if os.path.exists(property_path):
                     os.remove(property_path)
+                continue
             print(f"Property {model_name}_{i} verification result: {'verified' if not is_sat else 'not verified'}")
 
-            current_eps = MIN_EPS
             max_verified_eps = MIN_EPS
-            success = False
+            current_eps = MIN_EPS + REFINEMENT_STEP
+
             while current_eps <= MAX_EPS:
                 print(f"\nTesting epsilon={current_eps:.4f}")
                 # Overwrite property file with current epsilon
@@ -362,10 +365,9 @@ if __name__ == '__main__':
                     is_sat = verify_property(model_path, property_path)
                 except Exception as e:
                     print(f"Error during property verification: {str(e)}")
-                    success = False
                     break
 
-                if current_eps == MAX_EPS:
+                if current_eps + REFINEMENT_STEP > MAX_EPS:
                     if not is_sat:
                         # If network is safe at max epsilon, delete property file and exit without saving to CSV
                         if os.path.exists(property_path):
@@ -385,17 +387,17 @@ if __name__ == '__main__':
                     adv_samples_list.append(sample)
                     adv_labels_list.append(label)
 
-                    success = True
+                    # Write result to CSV only if property was not safe at MAX_EPS
+                    with open(csv_path, 'a') as f:
+                            f.write(f"{model_name},{filename},{max_verified_eps}\n")
                     break
-                print(f"Property verified at epsilon={current_eps:.4f}")
+
                 max_verified_eps = current_eps
                 current_eps += REFINEMENT_STEP
 
-            # Write result to CSV only if property was not safe at MAX_EPS
-            with open(csv_path, 'a') as f:
-                if success:
-                    f.write(f"{model_name},{filename},{max_verified_eps}\n")
 
         # Save dataset containing only samples that passed verification in model specific folder
         if len(adv_eps_list) > 0:
             save_verified_dataset(adv_eps_list, adv_samples_list, adv_labels_list, model_path, model_property_dir, DATASET_NAME)
+
+

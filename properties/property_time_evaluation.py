@@ -6,7 +6,9 @@ import re
 import csv
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+import statistics
 
+import pandas as pd
 from jinja2 import Template
 from pynever.scripts import cli
 from pynever.networks import NeuralNetwork
@@ -14,6 +16,7 @@ import io
 import contextlib
 import concurrent.futures
 import re
+import os
 
 
 def capture_output(func, *args, **kwargs):
@@ -42,7 +45,7 @@ def parse_output(output: str):
 
 TIMEOUT = 300
 MAX_PROPERTIES = 20
-TEMPLATE_PATH = "template_config.yaml"
+TEMPLATE_PATH = "../verification_time_testing/alpha_beta_crown/template_config.yaml"
 
 
 def verify_property(model_path, property_file_path):
@@ -167,52 +170,88 @@ def verify_properties(onnx_model_path, vnnlib_dir):
     return results
 
 if __name__ == "__main__":
-    model_hdim = 2000
-    model_path = fr"/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/properties/networks/withotuh flatten/{model_hdim}.onnx"
-    vnnlib_dir = fr"/mnt/c/Users/andr3/Desktop/properties/0.015/{model_hdim}"
-    # 
-    # if not os.path.exists(model_path):
-    #     print(f"Model file not found: {model_path}")
-    #     sys.exit(1)
-    # 
-    # if not os.path.exists(vnnlib_dir):
-    #     print(f"VNNLib directory not found: {vnnlib_dir}")
-    #     sys.exit(1)
-    # 
-    # results = verify_properties(model_path, vnnlib_dir)
-    # 
 
-    # Quick test with abcrown
-    test_property = os.path.join(vnnlib_dir, os.listdir(vnnlib_dir)[0])
+    # === Parametri iniziali ===
+    model_hdim = 1000
+    model_path = fr"/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/properties/MNIST/MNIST-FC/models NOT overfitted/model_{model_hdim}.onnx"
+    model_path = fr"/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/properties/MNIST/MNIST-FC/best_models/{model_hdim}.onnx"
 
-    cmd = [
-        sys.executable,
-        "complete_verifier/abcrown.py",
-        "--config", "config.yaml",
-    ]
+    vnnlib_dir = fr"/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/properties/MNIST/PROPERTIES/properties/{model_hdim}"
+    TIMEOUT = 300  # secondi
 
+    # === Controlli iniziali ===
+    if not os.path.exists(model_path):
+        print(f"Model file not found: {model_path}")
+        sys.exit(1)
+
+    if not os.path.exists(vnnlib_dir):
+        print(f"VNNLib directory not found: {vnnlib_dir}")
+        sys.exit(1)
+
+    # === Carica il template YAML ===
     with open(TEMPLATE_PATH) as f:
         template = Template(f.read())
 
-    config = template.render(
-        onnx_path=model_path,
-        vnnlib_path=test_property
-    )
-    with open("config.yaml", 'w') as f:
-        f.write(config)
+    # === Inizializzazione dati ===
+    results = []
+    times = []
 
-    start_time = time.time()
-    process = subprocess.run(cmd, capture_output=False, text=True, timeout=TIMEOUT)
-    duration = time.time() - start_time
+    # === Loop su tutte le proprietà ===
+    for filename in sorted(os.listdir(vnnlib_dir)):
+        if not filename.endswith(".vnnlib"):
+            continue
 
-    with open('out.txt', 'r') as f:
-        content = f.read()
+        vnnlib_path = os.path.join(vnnlib_dir, filename)
+        config = template.render(onnx_path=model_path, vnnlib_path=vnnlib_path)
 
-    if 'sat' in content and 'unsat' not in content:
-        status = 'sat'
-    elif 'unsat' in content:
-        status = 'unsat'
-    else:
-        status = 'timeout'
+        with open("config.yaml", "w") as f:
+            f.write(config)
 
-    print(f"Test verification result - Status: {status}, Duration: {duration:.2f}s")
+        cmd = [
+            sys.executable,
+            "complete_verifier/abcrown.py",
+            "--config", "config.yaml"
+        ]
+
+        try:
+            start_time = time.time()
+            subprocess.run(cmd, capture_output=False, text=True, timeout=TIMEOUT)
+            duration = time.time() - start_time
+        except subprocess.TimeoutExpired:
+            results.append(("timeout", filename, TIMEOUT))
+            times.append(TIMEOUT)
+            continue
+
+        # Leggi output
+        with open("out.txt", "r") as f:
+            content = f.read()
+
+        if 'sat' in content and 'unsat' not in content:
+            status = 'sat'
+        elif 'unsat' in content:
+            status = 'unsat'
+        else:
+            status = 'timeout'
+
+        results.append((status, filename, duration))
+        times.append(duration)
+
+    # === Statistiche finali ===
+    print("\n== Statistiche sui tempi ==")
+    print(f"Numero proprietà verificate: {len(times)}")
+    print(f"Tempo massimo: {max(times):.2f}s")
+    print(f"Tempo minimo: {min(times):.2f}s")
+    print(f"Tempo medio: {statistics.mean(times):.2f}s")
+    print(f"Mediana: {statistics.median(times):.2f}s")
+    if len(times) > 1:
+        print(f"Deviazione standard: {statistics.stdev(times):.2f}s")
+
+    # === Risultati per proprietà ===
+    print("\n== Dettaglio per proprietà ==")
+    for status, fname, t in results:
+        print(f"{fname:40} -> {status.upper():7} | {t:.2f}s")
+
+    # === Salvataggio su CSV ===
+    df = pd.DataFrame(results, columns=["status", "filename", "duration_seconds"])
+    df.to_csv("results.csv", index=False)
+    print("\n📄 Risultati salvati in: results.csv")

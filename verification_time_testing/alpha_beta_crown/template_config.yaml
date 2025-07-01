@@ -1,0 +1,17 @@
+general:
+  device: cpu
+  seed: 100
+  enable_incomplete_verification: true
+  complete_verifier: bab
+
+  results_file: out.txt
+  output_file: out.pkl
+
+model:
+  onnx_path: "{{ onnx_path }}"
+
+specification:
+  type: lp
+  vnnlib_path: "{{ vnnlib_path }}"
+  norm: .inf
+

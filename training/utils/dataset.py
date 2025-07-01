@@ -13,14 +13,13 @@ def get_dataset(dataset_name, input_flattened = True):
     if dataset_name == 'MNIST':
 
         if input_flattened:
-            dummy_input = torch.randn(1, 1, 784)
+            dummy_input = torch.randn(1, 784)
             transform = transforms.Compose([transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))])
 
         else:
             dummy_input = torch.randn(1, 1, 28, 28)
             transform = transforms.Compose([transforms.ToTensor()])
 
-        transform = transforms.Compose([transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))])
         train_set = datasets.MNIST(root=DATASET_DIRECTORY
                                    , train=True, download=True, transform=transform)
         test_set = datasets.MNIST(root=DATASET_DIRECTORY
@@ -31,7 +30,7 @@ def get_dataset(dataset_name, input_flattened = True):
     elif dataset_name == 'FMNIST':
 
         if input_flattened:
-            dummy_input = torch.randn(1, 1, 784)
+            dummy_input = torch.randn(1, 784)
             transform = transforms.Compose([transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))])
         else:
             dummy_input = torch.randn(1, 1, 28, 28)

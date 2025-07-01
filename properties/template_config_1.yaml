@@ -1,0 +1,21 @@
+general:
+  device: cuda
+  seed: 100
+  conv_mode: patches
+  enable_incomplete_verification: false
+  complete_verifier: bab
+
+  results_file: out.txt
+  output_file: out.pkl
+
+model:
+  onnx_path: "{{ onnx_path }}"
+
+specification:
+  type: lp
+  vnnlib_path: "{{ vnnlib_path }}"
+  norm: .inf
+
+attack:
+  # Early stop PGD when an adversarial example is found.
+  pgd_early_stop: true

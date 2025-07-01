@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class CustomFCNN(nn.Module):
+class CustomFCNN_Shallow(nn.Module):
     """A simple fully connected neural network with one hidden layer.
     
     Args:
@@ -24,7 +24,7 @@ class CustomFCNN(nn.Module):
         Raises:
             ValueError: If any of the dimensions are not positive integers
         """
-        super(CustomFCNN, self).__init__()
+        super(CustomFCNN_Shallow, self).__init__()
 
         # Input validation
         if not all(isinstance(x, int) and x > 0 for x in [input_dim, hidden_layer_dim, output_dim]):
@@ -130,4 +130,69 @@ class CustomConvNN(nn.Module):
             (self.conv.out_channels, conv_out_size, conv_out_size),
             (self.fc1.in_features, self.fc1.out_features),
             (self.fc2.in_features, self.fc2.out_features)
+        )
+
+
+class CustomFCNN(nn.Module):
+    """A fully connected neural network with configurable number of hidden layers.
+
+    Args:
+        input_dim (int): Number of input features
+        hidden_layer_dims (tuple): Tuple of the form (num_layers, hidden_dim)
+        output_dim (int): Number of output features
+    """
+
+    def __init__(self, input_dim: int, hidden_layer_dims: tuple, output_dim: int):
+        super(CustomFCNN, self).__init__()
+
+        if not (
+                isinstance(input_dim, int) and input_dim > 0 and
+                isinstance(output_dim, int) and output_dim > 0 and
+                isinstance(hidden_layer_dims, tuple) and len(hidden_layer_dims) == 2
+        ):
+            raise ValueError(
+                "Invalid input: input_dim/output_dim must be positive ints and hidden_layer_dims must be a tuple of (num_layers, hidden_dim)")
+
+        num_layers, hidden_dim = hidden_layer_dims
+        if not (isinstance(num_layers, int) and num_layers > 0 and isinstance(hidden_dim, int) and hidden_dim > 0):
+            raise ValueError("hidden_layer_dims must contain positive integers (num_layers, hidden_dim)")
+
+        self.identifier = f"{num_layers}x{hidden_dim}"
+        self.flatten = nn.Flatten()
+
+        # Build the sequence of layers
+        layers = []
+        layers.append(nn.Linear(input_dim, hidden_dim))
+        layers.append(nn.ReLU())
+
+        for _ in range(num_layers - 1):
+            layers.append(nn.Linear(hidden_dim, hidden_dim))
+            layers.append(nn.ReLU())
+
+        self.hidden_layers = nn.Sequential(*layers)
+        self.output_layer = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, x):
+        x = self.flatten(x)
+        if x.dim() != 2 or x.size(1) != self.hidden_layers[0].in_features:
+            raise ValueError(
+                f"Expected input shape (batch_size, {self.hidden_layers[0].in_features}), got {x.shape}")
+
+        x = self.hidden_layers(x)
+        x = self.output_layer(x)
+        return x
+
+    def get_shape(self) -> tuple:
+        """
+        Returns the shape of the network as (input_dim, num_layers, hidden_dim, output_dim).
+
+        Returns:
+            tuple: A tuple containing (input_dim, num_layers, hidden_dim, output_dim)
+        """
+        num_layers = len([layer for layer in self.hidden_layers if isinstance(layer, nn.Linear)])
+        return (
+            self.hidden_layers[0].in_features,
+            num_layers,
+            self.hidden_layers[0].out_features,
+            self.output_layer.out_features
         )
