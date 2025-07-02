@@ -8,7 +8,7 @@ print(f"Device: {device}")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Directory NETWORKS, che si trova una cartella sopra BASE_DIR
-RESULTS_FOLDER = os.path.abspath(os.path.join(BASE_DIR, '..', 'NETWORKS'))
+RESULTS_FOLDER = os.path.abspath(os.path.join(BASE_DIR, '..', 'networks'))
 
 # Ora i path assoluti usando RESULTS_FOLDER
 BEST_MODELS_FOLDER = os.path.join(RESULTS_FOLDER, "MNIST", "best_models")
