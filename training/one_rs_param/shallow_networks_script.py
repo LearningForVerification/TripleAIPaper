@@ -52,6 +52,7 @@ class ModelTrainingManagerShallow(ModelTrainingManager):
 
         return rs_loss, n_unstable_nodes
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_name', type=str, required=True, choices=['MNIST', 'FMNIST'],
@@ -63,14 +64,26 @@ def main():
     dataset_name = args.dataset_name
     config = load_config(args.file_name)
 
-    #hidden_layers_dim = [30, 50, 100, 200, 500, 1000, 2000, 4000, 8000, 10000]
-    hidden_layers_dim=[50, 500, 4000]
+    hidden_layers_dim = [50, 500, 4000]
     hidden_layers_dim = [(784, x, 10) for x in hidden_layers_dim]
 
-    config_file_path = "config_one_layered_full_dataset.yaml"
-    hyper_params_search = BinaryHyperParamsResearch(CustomFCNN_Shallow, config_file_path, config, dataset_name,
-                                                    hidden_layers_dim)
+    # Costruisci il path assoluto del file YAML nella stessa directory dello script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    config_file_path = os.path.join(script_dir, "config_one_layered_full_dataset.yaml")
+
+    if not os.path.exists(config_file_path):
+        raise FileNotFoundError(f"File di configurazione YAML non trovato: {config_file_path}")
+
+    hyper_params_search = BinaryHyperParamsResearch(
+        CustomFCNN_Shallow,
+        config_file_path,
+        config,
+        dataset_name,
+        hidden_layers_dim
+    )
+
     hyper_params_search.binary_search(min_increment, max_increment, steps_limit, ModelTrainingManagerShallow)
+
 
 if __name__ == "__main__":
     setup_logger()

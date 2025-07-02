@@ -1,35 +1,32 @@
 FROM continuumio/miniconda3
 
-# Installa git
-RUN apt-get update && apt-get install -y git
+# Installa git e pulisci cache
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
+# Crea cartella di lavoro
 WORKDIR /app
 
-# Clona la repo TripleAIPaper
+# Clona la repo
 RUN git clone https://github.com/LearningForVerification/TripleAIPaper.git
 
-# Copia requirements.txt dalla repo clonata
-COPY TripleAIPaper/requirements.txt ./requirements.txt
-
-# Crea ambiente conda Python 3.10.12
+# Crea ambiente conda e installa Python
 RUN conda create -n myenv python=3.10.12 -y
 
-# Aggiorna pip e installa pacchetti da requirements.txt (escludendo torch/vision/audio per CUDA)
+# Aggiorna pip e installa i requirements SENZA dipendenze
 RUN conda run -n myenv pip install --upgrade pip && \
-    conda run -n myenv pip install -r requirements.txt --no-deps
+    conda run -n myenv pip install -r /app/TripleAIPaper/requirements.txt --no-deps
 
-# Installa PyTorch, torchvision e torchaudio con supporto CUDA 11.8 da index PyTorch
+# Installa PyTorch con CUDA 11.8
 RUN conda run -n myenv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
-# Installa auto-LiRPA da git
+# Installa auto-LiRPA da Git
 RUN conda run -n myenv pip install git+https://github.com/Verified-Intelligence/auto_LiRPA.git
 
-# Usa sempre l'ambiente conda
+# Imposta shell per usare l'ambiente conda automaticamente
 SHELL ["conda", "run", "-n", "myenv", "/bin/bash", "-c"]
 
-# Imposta la working directory nella repo
+ENV PYTHONPATH=/app/TripleAIPaper
 WORKDIR /app/TripleAIPaper
 
-# Comando di default: esegue lo script con argomenti passati
-ENTRYPOINT ["python", "training/one_rs_param/shallow_networks_script.py"]
-CMD []
+# ENTRYPOINT diretto su python
+ENTRYPOINT ["conda", "run", "-n", "myenv", "python"]
