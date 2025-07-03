@@ -4,6 +4,7 @@ import torch
 from auto_LiRPA import BoundedTensor, PerturbationLpNorm
 
 
+
 def _l_relu_stable(lb, ub, norm_constant=1.0):
     """Compute stable ReLU loss with memory optimization"""
     with torch.cuda.amp.autocast():
@@ -56,22 +57,44 @@ def calculate_rs_loss_regularizer_fc(model,  hidden_layer_dim, lb, ub, normalize
 
     return rs_loss, n_unstable_nodes
 
+def calculate_rs_loss_regularizer_fc_2_layers(model,  hidden_layer_dim, lb, ub, normalized):
+    """Calculate RS loss regularizer for fully connected layers"""
+
+    params = list(model.parameters())
+    W1, b1 = params[0], params[1]
+    W2, b2 = params[2], params[3]
+
+    with torch.cuda.amp.autocast():
+        # Forward pass con mixed precision
+        lb_1, ub_1 = interval_arithmetic_fc(lb, ub, W1, b1)
+        lb_2, ub_2 = interval_arithmetic_fc(lb_1, ub_1, W2, b2)
+        rs_loss = _l_relu_stable(lb_1, ub_1) + _l_relu_stable(lb_2, ub_2)
+        n_unstable_nodes = (lb_1 * ub_1 < 0).sum(dim=1).float().mean().item() + (lb_2 * ub_2 < 0).sum(dim=1).float().mean().item()
+
+        if normalized:
+            rs_loss = rs_loss / (hidden_layer_dim*2)
+            rs_loss = (rs_loss + 1) / 2
+            assert 0 <= rs_loss <= 1, "RS LOSS not in 0, 1 range"
+
+    return rs_loss, n_unstable_nodes
+
 def calculate_rs_loss_regularizer_conv(model_lirpa, architecture_tuple, input_batch, perturbation, method, normalized):
     optimize_bound_args = {
         "enable_beta_crown": False,
         "enable_alpha_crown": False,
     }
+    x_L = torch.clamp(input_batch[0] - perturbation, min=0, max=1)
+    x_U = torch.clamp(input_batch[0] + perturbation, min=0, max=1)
+    ptb = PerturbationLpNorm(norm=np.inf, eps=None, x_L=x_L, x_U=x_U)
+    x_perturbed = BoundedTensor(input_batch[0], ptb)
 
-    x_perturbed = BoundedTensor(input_batch[0], perturbation)
-
-    print(f"x_perturbed shape: {x_perturbed.shape}")
 
     _, _ = model_lirpa.compute_bounds(x=(x_perturbed,), method=method)
     model_lirpa.set_bound_opts(optimize_bound_args)
 
     save_dict = model_lirpa.save_intermediate()
 
-
+    
     lb_conv, ub_conv = save_dict.get('/x')
     lb_conv = lb_conv.view(lb_conv.shape[0], -1)
     ub_conv = ub_conv.view(ub_conv.shape[0], -1)

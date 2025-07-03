@@ -38,9 +38,8 @@ class ModelTrainingManagerConv(ModelTrainingManager):
 
     def get_rsloss(self, model: nn.Module, model_ref, architecture_tuple: tuple, input_batch: Tensor,
                    perturbation, eps: float, method='ibp') -> tuple[Any, Any]:
-        print(f"{type(input_batch)} ")
         rs_loss, n_unstable_nodes = calculate_rs_loss_regularizer_conv(model, architecture_tuple, input_batch,
-                                                                       perturbation, method=method, normalized=True)
+                                                                       eps, method=method, normalized=True)
 
         return rs_loss, n_unstable_nodes
 

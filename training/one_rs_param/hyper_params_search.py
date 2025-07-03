@@ -34,7 +34,6 @@ class BinaryHyperParamsResearch:
         self.models = _generate_model(model_cls, candidates_network_archs)
         self.config_training = load_yaml_config(config_file_path)
         self.config = config['DEFAULT']
-        print(self.config)
         self.train_data_loader, self.test_data_loader, self.dummy_input, self.input_dim, self.output_dim = get_data_loader(
             dataset_name, train_batch_dim, test_batch_dim, input_flattened=False)
 

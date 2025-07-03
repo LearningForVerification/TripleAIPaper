@@ -146,7 +146,6 @@ class ModelTrainingManager(ABC):
             end_time = time.time()
             epoch_duration = end_time - start_time
             self.logger.debug(f"Epoch took {epoch_duration:.2f} seconds")
-            print(f"!!!!!!!!!!!!!!!!!!")
 
             if epoch %  self.config.getint('validation_frequency') == 0 and epoch != 0:
                 self.logger.debug("Evaluating model on test set at epoch %d/%d" % (epoch + 1, num_epochs))
@@ -154,16 +153,13 @@ class ModelTrainingManager(ABC):
                     model=model, model_ref=model_ref, arch_tuple=arch_tuple, loss_criterion=criterion, num_classes=num_classes, rsloss_lambda=rsloss_lambda,
                     train_set=False, eps=eps)
 
-        print("2!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         # Calculate final metrics
         test_accuracy, test_loss, partial_loss_test, partial_rsloss_test, test_unstable_nodes = self.calculate_accuracy_and_loss(
             model=model, model_ref=model_ref,  arch_tuple=arch_tuple, loss_criterion=criterion, num_classes=num_classes, rsloss_lambda=rsloss_lambda, train_set=False, eps=eps)
-        print("3!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
         train_accuracy, train_loss, partial_loss_train, partial_rsloss_train, train_unstable_nodes = self.calculate_accuracy_and_loss(
             model=model, model_ref=model_ref,  arch_tuple=arch_tuple, loss_criterion=criterion, num_classes=num_classes, rsloss_lambda=rsloss_lambda, train_set=True, eps=eps)
 
-        print("3!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
         # TEST that the original nn.Module has the same 
         model_ref_bounded = BoundedModule(model_ref, dummy_input, device=self.device)
