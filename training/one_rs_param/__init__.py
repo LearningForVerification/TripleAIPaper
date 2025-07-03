@@ -13,6 +13,9 @@ RESULTS_FOLDER = os.path.abspath(os.path.join(BASE_DIR, '..', 'networks'))
 # Ora i path assoluti usando RESULTS_FOLDER
 BEST_MODELS_FOLDER = os.path.join(RESULTS_FOLDER, "MNIST", "best_models")
 BACKUP_FOLDER = os.path.join(RESULTS_FOLDER, "BACKUP")
+ALL_MODELS_FOLDER = os.path.join(RESULTS_FOLDER, "MNIST", "all_models")
+REFINED_MODELS_FOLDER = os.path.join(RESULTS_FOLDER, "MNIST", "refined_attempt")
+
 
 CSV_FILE_BEST_CANDIDATES = os.path.join(RESULTS_FOLDER, "results_best_candidates.csv")
 CSV_FILE_ALL_CANDIDATES = os.path.join(RESULTS_FOLDER, "results_all_candidates.csv")
@@ -21,3 +24,5 @@ CSV_FILE_ALL_CANDIDATES = os.path.join(RESULTS_FOLDER, "results_all_candidates.c
 os.makedirs(RESULTS_FOLDER, exist_ok=True)
 os.makedirs(BEST_MODELS_FOLDER, exist_ok=True)
 os.makedirs(BACKUP_FOLDER, exist_ok=True)
+os.makedirs(ALL_MODELS_FOLDER, exist_ok=True)
+os.makedirs(REFINED_MODELS_FOLDER, exist_ok=True)
