@@ -70,7 +70,8 @@ def main():
     config = load_config(args.file_name)
 
     hidden_layers_dim = [30, 50, 100, 200, 500, 1000, 2000, 4000, 8000, 10000]
-    hidden_layers_dim = [50, 100, 250, 500, 1000, 2000, 4000]
+    hidden_layers_dim = [50, 100, 250, 500, 1000, 2000]
+
 
     hidden_layer_tuples = [(2, dim) for dim in hidden_layers_dim]
     hidden_layers_dim = [(784, x, 10) for x in hidden_layer_tuples]
