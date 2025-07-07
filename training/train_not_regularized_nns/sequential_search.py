@@ -3,7 +3,8 @@ import logging
 
 from ..utils.dataset import get_data_loader
 from ..utils.utils import load_yaml_config, save_models, write_results_on_csv
-from training.train_not_regularized_nns import NUM_EPOCHS, RESULTS_FOLDER, CSV_FILE_ALL_CANDIDATES, CSV_FILE_BEST_CANDIDATES, device
+from training.train_not_regularized_nns import NUM_EPOCHS, RESULTS_FOLDER, CSV_FILE_ALL_CANDIDATES, \
+    CSV_FILE_BEST_CANDIDATES, device, BEST_MODELS_FOLDER
 
 
 def _generate_model(model_cls, candidates_network_archs):
@@ -33,9 +34,11 @@ class SequentialTraining:
 
         self.metrics_collection = list()
         self.model_collection = list()
-        self.save_folder_best_candidates = os.path.join(RESULTS_FOLDER, dataset_name, "best_models")
+        self.save_folder_best_candidates = BEST_MODELS_FOLDER
         self.csv_file_path_best_candidates = CSV_FILE_BEST_CANDIDATES
         self.device = device
+        print(self.csv_file_path_best_candidates)
+
 
 
         self.logger = logging.getLogger(__name__)
@@ -59,7 +62,7 @@ class SequentialTraining:
         )
 
         # Salva il primo modello e registra il risultato
-        save_models(first_model, first_model.identifier, self.save_folder_best_candidates, self.device,
+        save_models(first_model, first_model_arch, self.save_folder_best_candidates, self.device,
                     self.dummy_input)
         write_results_on_csv(self.csv_file_path_best_candidates, first_score)
 
@@ -73,7 +76,7 @@ class SequentialTraining:
                                             data_loader=(self.train_data_loader, self.test_data_loader))
 
             # Primo tentativo: riuso del modello precedente
-            self.logger.info("Training new arch with Weight Reusing", model_.identifier)
+            self.logger.info("Training new arch with Weight Reusing: %s", model_shape)
             score, trained_model = model_trainer.find_overfitted_best_model(
                 model_, model_shape, self.config, max_num_epochs=NUM_EPOCHS,
                 previous_model=previous_model, early_stopping=early_stopping
@@ -81,7 +84,8 @@ class SequentialTraining:
 
             # Se fallisce, riprova senza previous_model
             if score is None or trained_model is None:
-                self.logger.info("Retrying without Weight Reusing", model_.identifier)
+                self.logger.info("Retrying with Weight Reusing: %s", model_shape)
+
                 score, trained_model = model_trainer.find_overfitted_best_model(
                     model_, model_shape, self.config, max_num_epochs=NUM_EPOCHS,
                     early_stopping=early_stopping
@@ -91,15 +95,15 @@ class SequentialTraining:
                 if score['test_accuracy'] > previous_acc:
                     self.logger.info(
                         "Model %s achieved better accuracy %.4f > %.4f. Saving model...",
-                        trained_model.identifier,
+                        model_shape,
                         score['test_accuracy'],
                         previous_acc
                     )
                     previous_acc = score['test_accuracy']
                     previous_model = trained_model
 
-                    save_models(trained_model, trained_model.identifier,
+                    save_models(trained_model, model_shape,
                                 self.save_folder_best_candidates, self.device, self.dummy_input)
                     write_results_on_csv(self.csv_file_path_best_candidates, score)
             else:
-                self.logger.warning("Model %s failed or did not improve. Skipping...", model_.identifier)
+                self.logger.warning("Model %s failed or did not improve. Skipping...", model_shape)

@@ -62,12 +62,12 @@ class ModelTrainingManager:
                 previous_model
             )
 
-            if score['test_accuracy'] > self.target_accuracy and score['train_accuracy'] > 99:
+            if score['test_accuracy'] > self.target_accuracy:
                 # Return the model and scores if accuracy thresholds are met
                 return score, model
             else:
                 self.logger.info(
-                    f"Failed (acc: {score['test_accuracy']:.4f}). Retraining with scheduler: {scheduler_type}")
+                    f"Failed (acc: {score['test_accuracy']:.4f}). Target acc: {self.target_accuracy} Trained with scheduler: {scheduler_type}")
 
         return None, None
 
