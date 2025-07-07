@@ -24,7 +24,7 @@ from training.utils.rs_loss_regularizer import calculate_rs_loss_regularizer_con
 
 STATS = False
 min_increment = 0.1
-max_increment = 7
+max_increment = 9
 steps_limit = 10
 
 setup_logger()
@@ -63,13 +63,13 @@ def main():
     conv_filters_dim = 17
     
     if dataset_name == "MNIST":
-        fc_layers_dim = [30, 50, 100, 200, 500, 1000, 2000, 4000]
+        fc_layers_dim = [5, 15, 25, 50, 100, 200, 500]
         conv_filters_dim = 17
         kernel_size = 5
 
 
     elif dataset_name == "FMNIST":
-        fc_layers_dim = [30, 50, 100, 200, 500, 1000, 2000, 4000]
+        fc_layers_dim = [5, 15, 25, 50, 100, 200, 500]
         conv_filters_dim = 17
         kernel_size = 5
 

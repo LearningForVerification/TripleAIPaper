@@ -66,6 +66,7 @@ class BinaryHyperParamsResearch:
             refinement_cycle_length=self.config['REFINEMENT_CYCLE_LENGTH'],
         )
 
+        print(first_model.get_shape())
         baseline_metrics, baseline_model, baseline_model_ref = baseline_model_training_manager.train(first_model,
                                                                                                      first_model.get_shape(),
                                                                                                      self.dummy_input,
@@ -78,10 +79,15 @@ class BinaryHyperParamsResearch:
                                                                                                      eps=self.config.getfloat(
                                                                                                          'noise'))
 
+        print(baseline_model_ref.identifier)
+        print(baseline_metrics)
+
         # Save baseline results
         save_models(baseline_model_ref, baseline_model_ref.identifier, self.save_folder_best_candidates, self.device,
                     self.dummy_input)
         write_results_on_csv(self.csv_file_path_best_candidates, baseline_metrics)
+        write_results_on_csv(self.csv_file_path_all_candidates, baseline_metrics)
+
 
         self.logger.info(
             "Minimum Accuracy and Unstable Nodes threshold set by baseline model's results with architecture %s:",
