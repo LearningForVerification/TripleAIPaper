@@ -183,3 +183,8 @@ fabric.properties
 
 # idea folder, uncomment if you don't need it
 # .idea
+# Modelli / Machine learning
+*.onnx
+*.vnnlib
+*.pth
+*.json

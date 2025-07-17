@@ -1,0 +1,37 @@
+FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+
+ENV CONDA_DIR=/opt/conda
+ENV PATH=$CONDA_DIR/bin:$PATH
+
+# ---- Install system dependencies and Miniconda ----
+RUN apt-get update && apt-get install -y \
+    wget bzip2 ca-certificates libglib2.0-0 libxext6 libsm6 libxrender1 git && \
+    wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh && \
+    bash /tmp/miniconda.sh -b -p $CONDA_DIR && \
+    rm /tmp/miniconda.sh && \
+    $CONDA_DIR/bin/conda clean -t -i -p -y && \
+    ln -s $CONDA_DIR/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
+    echo ". $CONDA_DIR/etc/profile.d/conda.sh" >> ~/.bashrc
+
+# ---- Set working directory ----
+WORKDIR /app
+
+# ---- Create folders ----
+RUN mkdir -p /app/results /app/verificatori
+
+# ---- Copy source code ----
+COPY verificatori/pynever_solver /app/verificatori/
+COPY compare_with_pynever.py /app/
+COPY networks /app/networks
+COPY properties /app/properties
+
+# ---- Create Conda environment and install dependencies ----
+RUN conda create -n myenv python=3.12.11 -y && \
+    /opt/conda/envs/myenv/bin/pip install --upgrade pip && \
+    /opt/conda/envs/myenv/bin/pip install pynever jinja2 pandas
+
+# ---- Set environment variables ----
+ENV PYTHONPATH=/app
+
+# ---- Default command: start a bash shell with environment activated ----
+CMD ["/bin/bash", "-c", "source activate myenv && bash"]

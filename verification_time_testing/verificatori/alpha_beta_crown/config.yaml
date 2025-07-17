@@ -1,0 +1,17 @@
+general:
+  device: cpu
+  seed: 100
+
+  enable_incomplete_verification: false
+  complete_verifier: bab
+
+  results_file: out.txt
+  output_file: out.pkl
+
+model:
+  onnx_path: "C:\Users\andr3\PycharmProjects\TripleAIPaper\verification_time_testing\networks\2-FC\0.03\2x100.onnx"
+
+specification:
+  type: lp
+  vnnlib_path: "C:\Users\andr3\PycharmProjects\TripleAIPaper\verification_time_testing\properties\0.03\sample_0003_label_0_eps_0.030.vnnlib"
+  norm: .inf

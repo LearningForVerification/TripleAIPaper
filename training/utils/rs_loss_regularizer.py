@@ -38,24 +38,24 @@ def interval_arithmetic_fc(lb, ub, W, b):
         raise NotImplementedError("Only 2D weight matrices are supported")
 
 
-def calculate_rs_loss_regularizer_fc(model,  hidden_layer_dim, lb, ub, normalized):
+def calculate_rs_loss_regularizer_fc(model,  input_batch, eps):
     """Calculate RS loss regularizer for fully connected layers"""
+
+
+    # Calcola lower bound e upper bound per ogni input nel batch
+    input_lb = torch.clamp(input_batch - eps, min=0, max=1)
+    input_ub = torch.clamp(input_batch + eps, min=0, max=1)
 
     params = list(model.parameters())
     W1, b1 = params[0], params[1]
 
     with torch.cuda.amp.autocast():
         # Forward pass con mixed precision
-        lb_1, ub_1 = interval_arithmetic_fc(lb, ub, W1, b1)
+        lb_1, ub_1 = interval_arithmetic_fc(input_lb, input_ub, W1, b1)
         rs_loss = _l_relu_stable(lb_1, ub_1)
         n_unstable_nodes = (lb_1 * ub_1 < 0).sum(dim=1).float().mean().item()
 
-        if normalized:
-            rs_loss = rs_loss / hidden_layer_dim
-            rs_loss = (rs_loss + 1) / 2
-            assert 0 <= rs_loss <= 1, "RS LOSS not in 0, 1 range"
-
-    return rs_loss, n_unstable_nodes
+    return n_unstable_nodes
 
 def calculate_rs_loss_regularizer_fc_2_layers(model,  hidden_layer_dim, lb, ub, normalized):
     """Calculate RS loss regularizer for fully connected layers"""

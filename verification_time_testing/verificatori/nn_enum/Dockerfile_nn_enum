@@ -1,0 +1,15 @@
+FROM python:3.10
+
+COPY ./requirements.txt /work/requirements.txt
+
+WORKDIR /work
+
+RUN pip3 install -r requirements.txt
+
+ENV PYTHONPATH=$PYTHONPATH:/work/src
+ENV OPENBLAS_NUM_THREADS=1
+ENV OMP_NUM_THREADS=1
+
+COPY . /work
+
+CMD ["bash"]

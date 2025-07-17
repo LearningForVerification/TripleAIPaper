@@ -1,0 +1,15 @@
+name: PyRAT
+ami: ami-0280f3286512b1b99
+scripts_dir: .
+manual_installation_step: False
+run_installation_script_as_root: False
+run_post_installation_script_as_root: False
+run_toolkit_as_root: False
+description:
+  "PyRAT (Python Reachability Assessment Tool) is an abstract interpretation based tool performing reachability analysis
+  on neural networks through various abstract domains (Box, Zonotopes, Polyhedra, ...). PyRAT leverages the experience
+  of working on the verification of classical system at CEA with formal methods and tools like Frama-C or Binsec.
+  Developed at CEA, it aims to facilitates the whole validation process of neural network in industrial context through 
+  a Python interface. It supports different architectures and layers (linear and non-linear) of neural networks. It 
+  implements various parameters and heuristics to guide and improve the verification process like ReCIPH 
+  [https://inria.hal.science/hal-03926281]."

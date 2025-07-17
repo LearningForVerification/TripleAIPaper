@@ -1,0 +1,31 @@
+FROM python:3.9
+
+COPY ./requirements.txt /work/requirements.txt
+
+# set working directory
+WORKDIR /work
+
+# crea la cartella /work/desktop nel container
+RUN mkdir -p /work/desktop
+
+# install python package dependencies
+RUN apt update
+RUN apt install apt-utils
+RUN apt-get update  && apt-get install -y wget && apt-get clean && rm -rf /var/lib/apt/lists/
+
+RUN apt-get update
+RUN apt-get install cmake -y
+RUN apt-get install protobuf-compiler -y
+RUN apt install -y libopenblas-dev zip -y
+RUN pip --default-timeout=1000 install -r requirements.txt
+
+# copy remaining files to docker
+COPY . /work
+RUN cd /work && ls
+
+# set environment variables
+ENV PYTHONPATH=$PYTHONPATH:/work
+
+# cmd, run one of each benchmark
+CMD ["bash"]
+

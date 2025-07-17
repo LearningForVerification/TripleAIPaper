@@ -1,0 +1,37 @@
+FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+
+ENV CONDA_DIR=/opt/conda
+ENV PATH=$CONDA_DIR/bin:$PATH
+
+# ---- Install system dependencies and Miniconda ----
+RUN apt-get update && apt-get install -y \
+    wget bzip2 ca-certificates libglib2.0-0 libxext6 libsm6 libxrender1 git && \
+    wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh && \
+    bash /tmp/miniconda.sh -b -p $CONDA_DIR && \
+    rm /tmp/miniconda.sh && \
+    $CONDA_DIR/bin/conda clean -t -i -p -y && \
+    ln -s $CONDA_DIR/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
+    echo ". $CONDA_DIR/etc/profile.d/conda.sh" >> ~/.bashrc
+
+# ---- Set working directory ----
+WORKDIR /app
+
+# ---- Copy source code ----
+COPY . /app/
+
+# ---- Create Conda environment and install dependencies ----
+RUN conda create -n myenv python=3.10 -y && \
+    conda run -n myenv pip install --upgrade pip && \
+    conda run -n myenv pip install \
+        torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 && \
+    conda run -n myenv pip install pynever \
+        jinja2 pandas
+
+
+
+# ---- Set environment variables ----
+ENV PYTHONPATH=/app
+
+# ---- Use conda run as entrypoint ----
+CMD ["bash", "-c", "source /opt/conda/etc/profile.d/conda.sh && conda activate myenv && exec bash"]
+

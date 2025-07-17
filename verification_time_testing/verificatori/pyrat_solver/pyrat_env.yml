@@ -1,0 +1,34 @@
+name: pyrat
+channels:
+  - defaults
+  - pytorch
+  - conda-forge
+dependencies:
+  - python=3.9.13
+  - loguru
+  - tqdm
+  - onnxruntime
+  - pip=21.2.4
+  - onnx>=1.9
+  - psutil
+  - pytest
+  - pillow
+  - pytorch:torchvision=0.12
+  - pytorch:cudatoolkit=11.3
+  - pytorch:pytorch=1.11=*cuda*
+  - gitpython
+  - matplotlib
+  - pyvis
+  - configargparse
+  - pydocstyle
+  - protobuf==3.20.*
+  - pip:
+      - opencv-python
+      - scipy
+      - tensorflow>=2.7
+      - foolbox~=3.3.3
+      - onnx2torch~=1.4.1
+      - cvxpy[CBC]>=1.2.0
+      - cvxpy[CLARABEL]>=1.2.0
+      - onnxsim
+
