@@ -14,10 +14,10 @@ RUN apt-get update && apt-get install -y \
     echo ". $CONDA_DIR/etc/profile.d/conda.sh" >> ~/.bashrc
 
 # ---- Set working directory ----
-WORKDIR /app
+WORKDIR /workspace
 
 # ---- Copy source code ----
-COPY . /app/
+COPY . /workspace/
 
 # ---- Create Conda environment and install dependencies ----
 RUN conda create -n myenv python=3.10 -y && \
@@ -27,11 +27,8 @@ RUN conda create -n myenv python=3.10 -y && \
     conda run -n myenv pip install pynever \
         jinja2 pandas
 
-
-
 # ---- Set environment variables ----
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/workspace
 
 # ---- Use conda run as entrypoint ----
 CMD ["bash", "-c", "source /opt/conda/etc/profile.d/conda.sh && conda activate myenv && exec bash"]
-

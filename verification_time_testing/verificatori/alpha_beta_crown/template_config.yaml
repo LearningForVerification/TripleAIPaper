@@ -1,7 +1,6 @@
 general:
   device: cpu
   seed: 100
-
   enable_incomplete_verification: false
   complete_verifier: bab
 
@@ -15,3 +14,37 @@ specification:
   type: lp
   vnnlib_path: "{{ vnnlib_path }}"
   norm: .inf
+
+solver:
+  batch_size: 500
+  bound_prop_method: crown-interval
+
+  beta-crown:
+    iteration: 20
+    lr_alpha: 0.1
+    lr_beta: 0.1
+    opt_steps: 20
+    lr_decay: 0.98
+    alpha_init: crown-ibp
+    beta_init: random
+    branching_candidates: 10
+
+  alpha-crown:
+    iteration: 10
+    share_alphas: True
+
+bab:
+  branching:
+    method: sb
+    candidates: 5
+    sb_coeff_thresh: 0.01
+    input_split:
+      enable: True
+      enhanced_bound_prop_method: alpha-crown
+      enhanced_bound_patience: 20
+      enhanced_branching_method: sb
+      attack_patience: 80
+
+attack:
+  pgd_order: after
+  pgd_restarts: 10000

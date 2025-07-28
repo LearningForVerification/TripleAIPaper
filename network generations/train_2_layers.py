@@ -221,7 +221,7 @@ def main():
     for cfg in layer_configs:
         print(f"\nTraining model with {cfg[1]} hidden neurons and {cfg[0]} layers")
         model = CustomFCNN(input_dim, cfg, output_dim)
-        result = train_model(model, train_loader, test_loader, l1_bool=True, early_stopping=True, device=device, learning_rate=0.005, use_scheduler=True)
+        result = train_model(model, train_loader, test_loader, l1_bool=False, early_stopping=True, device=device, learning_rate=0.005, use_scheduler=True)
         results[cfg] = result
 
     save_models(results, layer_configs)

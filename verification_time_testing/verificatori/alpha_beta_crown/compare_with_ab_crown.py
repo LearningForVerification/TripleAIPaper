@@ -15,10 +15,10 @@ logger = logging.getLogger()
 def main(max_prop, timeout):
     current_directory = os.path.dirname(os.path.abspath(__file__))
 
-    experiments_category_folders = ["2-FC", "CONV", "FC"]
+    experiments_category_folders = ["2-FC", "FC"]
     experiments_category_folders = [os.path.join(current_directory, "networks", x) for x in experiments_category_folders]
 
-    sub_category_folder = ["0.03", "not_over_param", "over_param"]
+    sub_category_folder = ["0.03", "not_over_param", "over_param", "not_over_param_not_sparse"]
 
     property_folder = os.path.join(current_directory, "properties", "0.03")
     if not os.path.isdir(property_folder):

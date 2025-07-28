@@ -348,9 +348,9 @@ def main():
                     l1_bool=True,
                     early_stopping=True,
                     device=device,
-                    max_epochs=30,
+                    max_epochs=50,
                     patience=5,
-                    l1_lambda=0.001,
+                    l1_lambda=0,
                     learning_rate=0.005,
                     use_scheduler=True
                 )

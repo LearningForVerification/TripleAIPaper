@@ -7,7 +7,7 @@ import argparse
 # Import da script esterni
 from get_pynever_time import get_pynever_time
 
-def main(max_prop, timeout):
+def star_exp(max_prop, timeout):
     # Configura il logging
     logging.basicConfig(
         level=logging.INFO,
@@ -19,11 +19,12 @@ def main(max_prop, timeout):
     current_directory = os.path.dirname(os.path.abspath(__file__))
 
     # Cartelle delle categorie di esperimenti
-    experiments_category_folders = ["2-FC", "CONV", "FC"]
-    experiments_category_folders = [os.path.join(current_directory, "networks", x) for x in experiments_category_folders]
+    experiments_category_folders = ["2-FC", "FC"]
+    experiments_category_folders = [os.path.join(current_directory, "networks", x) for x in
+                                    experiments_category_folders]
 
     # Sottocategorie
-    sub_category_folder = ["0.03/flatten", "not_over_param/flatten", "over_param/flatten"]
+    sub_category_folder = ["0.03/flatten", "not_over_param/flatten", "over_param/flatten", "not_over_param_not_sparse/flatten"]
 
     # Cartella proprietà
     property_folder = os.path.join(current_directory, "properties", "0.03")
@@ -85,10 +86,18 @@ def main(max_prop, timeout):
 
                     logger.info(f"✅ Completata rete: {nn_file}")
 
-if __name__ == "__main__":
+
+def main():
     parser = argparse.ArgumentParser(description="Verifica proprietà su reti neurali usando PyNEVer.")
     parser.add_argument("--max_prop", type=int, default=1, help="Numero massimo di proprietà da verificare per ogni rete")
     parser.add_argument("--timeout", type=int, default=15, help="Timeout per la verifica (in secondi)")
     args = parser.parse_args()
 
-    main(max_prop=args.max_prop, timeout=args.timeout)
+    star_exp(max_prop=args.max_prop, timeout=args.timeout)
+
+def e_test():
+    get_pynever_time(model_path="networks/FC/over_param/fcnn_30.onnx", property_path="properties/0.03/sample_0095_label_4_eps_0.030.vnnlib", timeout=15)
+
+
+if __name__ == "__main__":
+    main()

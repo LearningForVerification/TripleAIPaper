@@ -1,0 +1,26 @@
+FROM ubuntu:22.04
+
+# Installa Python 3.10 e pip 22.0.2 (inclusi nei repo Ubuntu 22.04)
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN ln -s /usr/bin/python3 /usr/bin/python
+
+
+# Verifica versioni (opzionale, ma utile per debug)
+RUN python3 --version && pip3 --version
+
+# Cartella di lavoro
+WORKDIR /workspace
+
+COPY . /workspace
+
+
+# Copia la cartella Marabou dal contesto al container
+RUN pip install maraboupy numpy onnxruntime onnx tensorflow
+
+# Entra nella shell all'avvio
+CMD ["/bin/bash"]

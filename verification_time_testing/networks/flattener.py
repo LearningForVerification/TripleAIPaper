@@ -60,12 +60,10 @@ def process_multiple_folders(folder_list):
 
 # Esempio di lista cartelle da processare
 folder_list = [
-    r"/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/networks/2-FC/0.03",
-    r"/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/networks/2-FC/not_over_param",
-    r"/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/networks/2-FC/over_param",
-    r"/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/networks/FC/0.03",
-    r"/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/networks/FC/not_over_param",
-    r"/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/networks/FC/over_param"
+
+    r"/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/networks/2-FC/not_over_param_not_sparse",
+
+
 ]
 
 process_multiple_folders(folder_list)

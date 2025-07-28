@@ -62,7 +62,7 @@ def run_pyrat(model_path: str, property_path: str, timeout: int ):
 
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Esegui Pyrat su tutte le combinazioni modelli-proprietà.")
     parser.add_argument("--timeout", type=int, default=50, help="Timeout in secondi per ogni run")
     parser.add_argument("--max_prop", type=int, default=15, help="Timeout in secondi per ogni run")
@@ -74,12 +74,11 @@ if __name__ == "__main__":
     current_directory = os.path.dirname(os.path.abspath(__file__))
 
     # Cartelle delle categorie di esperimenti
-    experiments_category_folders = ["2-FC", "CONV", "FC"]
+    experiments_category_folders = ["2-FC", "FC"]
     experiments_category_folders = [os.path.join(current_directory, "networks", x) for x in
                                     experiments_category_folders]
 
-    # Sottocategorie
-    sub_category_folder = ["0.03", "not_over_param", "over_param"]
+    sub_category_folder = ["0.03", "not_over_param", "over_param", "not_over_param_not_sparse"]
 
     # Cartella proprietà (deve esistere)
     property_folder = os.path.join(current_directory, "properties", "0.03")
@@ -141,3 +140,9 @@ if __name__ == "__main__":
 
                     logger.info(f"✅ Completata rete: {nn_file}")
 
+def e_test():
+    run_pyrat(r"networks/FC/over_param/fcnn_30.onnx", r"properties/0.03/sample_0046_label_1_eps_0.030.vnnlib", 25)
+
+
+if __name__ == "__main__":
+    main()
