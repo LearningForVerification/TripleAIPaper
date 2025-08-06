@@ -5,16 +5,18 @@ import torch
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Device: {device}")
 
+DATASET_NAME = "FMNIST"
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Directory NETWORKS, che si trova una cartella sopra BASE_DIR
 RESULTS_FOLDER = os.path.abspath(os.path.join(BASE_DIR, '..', 'networks'))
 
 # Ora i path assoluti usando RESULTS_FOLDER
-BEST_MODELS_FOLDER = os.path.join(RESULTS_FOLDER, "MNIST", "best_models")
+BEST_MODELS_FOLDER = os.path.join(RESULTS_FOLDER, DATASET_NAME, "best_models")
 BACKUP_FOLDER = os.path.join(RESULTS_FOLDER, "BACKUP")
-ALL_MODELS_FOLDER = os.path.join(RESULTS_FOLDER, "MNIST", "all_models")
-REFINED_MODELS_FOLDER = os.path.join(RESULTS_FOLDER, "MNIST", "refined_attempt")
+ALL_MODELS_FOLDER = os.path.join(RESULTS_FOLDER, DATASET_NAME, "all_models")
+REFINED_MODELS_FOLDER = os.path.join(RESULTS_FOLDER, DATASET_NAME, "refined_attempt")
 
 
 CSV_FILE_BEST_CANDIDATES = os.path.join(RESULTS_FOLDER, "results_best_candidates.csv")

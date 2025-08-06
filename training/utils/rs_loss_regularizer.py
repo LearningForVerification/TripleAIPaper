@@ -55,7 +55,7 @@ def calculate_rs_loss_regularizer_fc(model,  input_batch, eps):
         rs_loss = _l_relu_stable(lb_1, ub_1)
         n_unstable_nodes = (lb_1 * ub_1 < 0).sum(dim=1).float().mean().item()
 
-    return n_unstable_nodes
+    return rs_loss, n_unstable_nodes
 
 def calculate_rs_loss_regularizer_fc_2_layers(model,  hidden_layer_dim, lb, ub, normalized):
     """Calculate RS loss regularizer for fully connected layers"""

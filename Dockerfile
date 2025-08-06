@@ -27,8 +27,8 @@ RUN conda run -n myenv pip install torch torchvision torchaudio --index-url http
 RUN conda run -n myenv pip install git+https://github.com/Verified-Intelligence/auto_LiRPA.git
 
 # Copia lo script di entrypoint nel container
-COPY docker-entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY docker-entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 # Usa lo script come entrypoint
-ENTRYPOINT ["/entrypoint.sh"]
+CMD ["/app/entrypoint.sh"]

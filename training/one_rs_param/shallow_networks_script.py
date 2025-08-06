@@ -42,13 +42,9 @@ class ModelTrainingManagerShallow(ModelTrainingManager):
 
     def get_rsloss(self, model: nn.Module, model_ref, architecture_tuple: tuple, input_batch: Tensor,
                    perturbation, eps, method='ibp') -> tuple[Any, Any]:
-        # Input perturbed bounds
-        # Input perturbed bounds con clipping tra 0 e 1
 
-        input_lb = torch.clamp(input_batch[0] - eps, min=0, max=1)
-        input_ub = torch.clamp(input_batch[0] + eps, min=0, max=1)
-
-        rs_loss, n_unstable_nodes = calculate_rs_loss_regularizer_fc(model_ref, architecture_tuple[1], input_lb, input_ub, normalized=True)
+        input_batch = input_batch[0]
+        rs_loss, n_unstable_nodes = calculate_rs_loss_regularizer_fc(model_ref, input_batch, eps)
 
         return rs_loss, n_unstable_nodes
 
