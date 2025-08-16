@@ -38,7 +38,7 @@ def interval_arithmetic_fc(lb, ub, W, b):
         raise NotImplementedError("Only 2D weight matrices are supported")
 
 
-def calculate_rs_loss_regularizer_fc(model,  input_batch, eps):
+def calculate_rs_loss_regularizer_fc(model, hidden_layer_dim, input_batch, eps, normalized=True):
     """Calculate RS loss regularizer for fully connected layers"""
 
 
@@ -54,6 +54,11 @@ def calculate_rs_loss_regularizer_fc(model,  input_batch, eps):
         lb_1, ub_1 = interval_arithmetic_fc(input_lb, input_ub, W1, b1)
         rs_loss = _l_relu_stable(lb_1, ub_1)
         n_unstable_nodes = (lb_1 * ub_1 < 0).sum(dim=1).float().mean().item()
+
+        if normalized:
+            rs_loss = rs_loss / hidden_layer_dim
+            rs_loss = (rs_loss + 1) / 2
+            assert 0 <= rs_loss <= 1, "RS LOSS not in 0, 1 range"
 
     return rs_loss, n_unstable_nodes
 

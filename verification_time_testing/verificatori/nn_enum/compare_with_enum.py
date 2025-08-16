@@ -22,7 +22,7 @@ def run_nnenum(onnx_path: str, vnnlib_path: str, timeout: int) -> tuple[str, flo
     if not os.path.isfile(vnnlib_path):
         raise FileNotFoundError(f"File VNNLIB non trovato: {vnnlib_path}")
 
-    cmd = ["python3", "-m", "nnenum.nnenum", onnx_path, vnnlib_path]
+    cmd = ["python3", "-m", "src.nnenum.nnenum", onnx_path, vnnlib_path]
 
     print(f"\n👉 Eseguo: {' '.join(cmd)} (timeout: {timeout}s)\n")
     start_time = time.perf_counter()

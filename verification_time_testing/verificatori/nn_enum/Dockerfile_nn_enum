@@ -1,21 +1,18 @@
 FROM python:3.10
 
-# Imposta una directory di lavoro
 WORKDIR /workspace
 
-# Copia solo i requirements all'inizio per caching migliore
 COPY requirements.txt .
 
-# Installa le dipendenze
+# Installa dipendenze Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia tutto il contenuto del progetto
+
+
 COPY . .
 
-# Imposta variabili di ambiente
 ENV PYTHONPATH=/workspace/src:$PYTHONPATH
 ENV OPENBLAS_NUM_THREADS=1
 ENV OMP_NUM_THREADS=1
 
-# Imposta il comando di default (puoi cambiarlo)
 CMD ["bash"]

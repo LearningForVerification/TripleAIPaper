@@ -44,7 +44,7 @@ class ModelTrainingManagerShallow(ModelTrainingManager):
                    perturbation, eps, method='ibp') -> tuple[Any, Any]:
 
         input_batch = input_batch[0]
-        rs_loss, n_unstable_nodes = calculate_rs_loss_regularizer_fc(model_ref, input_batch, eps)
+        rs_loss, n_unstable_nodes = calculate_rs_loss_regularizer_fc(model_ref, architecture_tuple[1], input_batch, eps, normalized=True)
 
         return rs_loss, n_unstable_nodes
 
