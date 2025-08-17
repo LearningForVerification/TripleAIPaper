@@ -41,7 +41,6 @@ def interval_arithmetic_fc(lb, ub, W, b):
 def calculate_rs_loss_regularizer_fc(model, hidden_layer_dim, input_batch, eps, normalized=True):
     """Calculate RS loss regularizer for fully connected layers"""
 
-
     # Calcola lower bound e upper bound per ogni input nel batch
     input_lb = torch.clamp(input_batch - eps, min=0, max=1)
     input_ub = torch.clamp(input_batch + eps, min=0, max=1)
@@ -111,13 +110,12 @@ def calculate_rs_loss_regularizer_conv(model_lirpa, architecture_tuple, input_ba
     rs_loss = _l_relu_stable_conv(lb_conv, ub_conv) + _l_relu_stable(lb_fc, ub_fc)
     n_unstable_nodes = ((lb_conv * ub_conv < 0).sum(dim=1).float().mean() +
                         (lb_fc * ub_fc < 0).sum(dim=1).float().mean())
-    
-    
 
     if normalized:
         rs_loss = rs_loss / (lb_fc.shape[1] + lb_conv.shape[1])
         rs_loss = (rs_loss + 1) / 2
-        assert 0 <= rs_loss <= 1, "RS LOSS not in 0, 1 range"
+        assert 0 <= rs_loss <= 1, (f"RS LOSS not in 0, 1 range: rs_loss={rs_loss}, lb_fc.shape={lb_fc.shape}, "
+                                   f"lb_conv.shape={lb_conv.shape}, architecture_tuple={architecture_tuple}")
 
     return rs_loss, n_unstable_nodes
 
@@ -193,3 +191,56 @@ def random_subbatch_per_class(input_batch, labels_batch, samples_per_class):
     sub_labels = labels_batch[selected_indices]
 
     return sub_inputs, sub_labels
+
+if __name__ == "__main__":
+    # Create test tensors
+    batch_size = 2
+    hidden_dim = 50
+
+    # Test case 1: All positive bounds
+    lb_1 = torch.linspace(0.1, 5.0, hidden_dim).unsqueeze(0)
+    ub_1 = torch.linspace(5.1, 10.0, hidden_dim).unsqueeze(0)
+
+    lb_2 = torch.linspace(0.2, 5.1, hidden_dim).unsqueeze(0)
+    ub_2 = torch.linspace(5.2, 10.1, hidden_dim).unsqueeze(0)
+
+    # Calculate RS losses for positive case
+    rs_loss_1 = _l_relu_stable(lb_1, ub_1)
+    rs_loss_2 = _l_relu_stable(lb_2, ub_2)
+    total_rs_loss = rs_loss_1 + rs_loss_2
+
+    # Print results for positive case
+    print("Test Case 1: All Positive Bounds")
+    print(f"RS Loss 1: {rs_loss_1:.4f}")
+    print(f"RS Loss 2: {rs_loss_2:.4f}")
+    print(f"Total RS Loss: {total_rs_loss:.4f}")
+    print(f"Shapes: lb_1: {lb_1.shape}, ub_1: {ub_1.shape}, lb_2: {lb_2.shape}, ub_2: {ub_2.shape}")
+
+    rs_loss = total_rs_loss / (hidden_dim * 2)
+    rs_loss = (rs_loss + 1) / 2
+    assert 0 <= rs_loss <= 1, "RS LOSS not in 0, 1 range"
+    print(f"Normalized RS Loss: {rs_loss:.4f}\n")
+
+    # Test case 2: All negative bounds
+    lb_1 = torch.linspace(-5.0, -0.1, hidden_dim).unsqueeze(0)
+    ub_1 = torch.linspace(10.0, 5.1, hidden_dim).unsqueeze(0)
+
+    lb_2 = torch.linspace(-5.1, -0.2, hidden_dim).unsqueeze(0)
+    ub_2 = torch.linspace(10.1, 5.2, hidden_dim).unsqueeze(0)
+
+    # Calculate RS losses for negative case
+    rs_loss_1 = _l_relu_stable(lb_1, ub_1)
+    rs_loss_2 = _l_relu_stable(lb_2, ub_2)
+    total_rs_loss = rs_loss_1 + rs_loss_2
+
+    # Print results for negative case
+    print("Test Case 2: All Negative Bounds")
+    print(f"RS Loss 1: {rs_loss_1:.4f}")
+    print(f"RS Loss 2: {rs_loss_2:.4f}")
+    print(f"Total RS Loss: {total_rs_loss:.4f}")
+    print(f"Shapes: lb_1: {lb_1.shape}, ub_1: {ub_1.shape}, lb_2: {lb_2.shape}, ub_2: {ub_2.shape}")
+
+    rs_loss = total_rs_loss / (hidden_dim * 2)
+    rs_loss = (rs_loss + 1) / 2
+    assert 0 <= rs_loss <= 1, "RS LOSS not in 0, 1 range"
+    print(f"Normalized RS Loss: {rs_loss:.4f}")

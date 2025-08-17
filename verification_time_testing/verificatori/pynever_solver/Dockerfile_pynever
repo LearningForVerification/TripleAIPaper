@@ -19,13 +19,17 @@ WORKDIR /workspace
 # ---- Copy source code ----
 COPY . /workspace/
 
-# ---- Create Conda environment and install dependencies ----
-RUN conda create -n myenv python=3.10 -y && \
-    conda run -n myenv pip install --upgrade pip && \
-    conda run -n myenv pip install \
-        torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 && \
-    conda run -n myenv pip install pynever \
-        jinja2 pandas
+# ---- Accept Conda Terms of Service ----
+RUN $CONDA_DIR/bin/conda config --set always_yes yes && \
+    $CONDA_DIR/bin/conda config --set report_errors true && \
+    $CONDA_DIR/bin/conda tos accept --channel https://repo.anaconda.com/pkgs/main && \
+    $CONDA_DIR/bin/conda tos accept --channel https://repo.anaconda.com/pkgs/r && \
+    $CONDA_DIR/bin/conda create -n myenv python=3.10 -y && \
+    $CONDA_DIR/envs/myenv/bin/pip install --upgrade pip && \
+    $CONDA_DIR/envs/myenv/bin/pip install torch==2.7.1 torchvision==0.22.1 torchaudio==2.7.1 --index-url https://download.pytorch.org/whl/cu118 && \
+    $CONDA_DIR/envs/myenv/bin/pip install pynever jinja2 pandas
+
+
 
 # ---- Set environment variables ----
 ENV PYTHONPATH=/workspace
