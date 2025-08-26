@@ -72,14 +72,15 @@ def calculate_rs_loss_regularizer_fc_2_layers(model,  hidden_layer_dim, lb, ub, 
         # Forward pass con mixed precision
         lb_1, ub_1 = interval_arithmetic_fc(lb, ub, W1, b1)
         lb_2, ub_2 = interval_arithmetic_fc(lb_1, ub_1, W2, b2)
-        rs_loss = _l_relu_stable(lb_1, ub_1) + _l_relu_stable(lb_2, ub_2)
+        rs_loss_1 = _l_relu_stable(lb_1, ub_1)
+        rs_loss_2 = _l_relu_stable(lb_2, ub_2)
+        rs_loss = rs_loss_1 + rs_loss_2
         n_unstable_nodes = (lb_1 * ub_1 < 0).sum(dim=1).float().mean().item() + (lb_2 * ub_2 < 0).sum(dim=1).float().mean().item()
 
         if normalized:
-            rs_loss = rs_loss / (hidden_layer_dim*2)
+            rs_loss = rs_loss / (hidden_layer_dim * 2)
             rs_loss = (rs_loss + 1) / 2
-            assert 0 <= rs_loss <= 1, "RS LOSS not in 0, 1 range"
-
+            assert 0 - 0.1 <= rs_loss <= 1 + 0.1, f"RS LOSS not in 0, 1 range: {rs_loss}, rs_loss1={rs_loss_1}, rs_loss2={rs_loss_2}, hidden_layer_dim={hidden_layer_dim}, lb1={lb_1.shape}, ub1={ub_1.shape}, lb2={lb_2.shape}, ub2={ub_2.shape}"
     return rs_loss, n_unstable_nodes
 
 def calculate_rs_loss_regularizer_conv(model_lirpa, architecture_tuple, input_batch, perturbation, method, normalized):

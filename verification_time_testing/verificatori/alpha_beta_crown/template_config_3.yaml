@@ -1,5 +1,5 @@
 general:
-  device: cpu
+  device: gpu
   seed: 100
 
   enable_incomplete_verification: false
