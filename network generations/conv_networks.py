@@ -4,6 +4,8 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
+from training.utils.nn_models import CustomConvNN
+
 import os
 import csv
 import onnx
@@ -19,81 +21,7 @@ EARLY_STOPPING = False
 L1_BOOL = False
 DATASET_NAME = "MNIST"  # oppure "FMNIST"
 
-conv_hidden_dims = [30, 50, 100, 200, 500, 1000]
-
-#
-# class CustomConvNN(nn.Module):
-#     def __init__(self, input_dim, output_dim, filters_number, kernel_size, stride, padding, hidden_layer_dim):
-#         super(CustomConvNN, self).__init__()
-#
-#         self.identifier = f"{filters_number}_{hidden_layer_dim}"
-#
-#         self.conv = nn.Conv2d(1, filters_number, kernel_size=kernel_size, stride=stride, padding=padding)
-#         self.flatten = nn.Flatten()
-#
-#         conv_output_size = ((input_dim + 2 * padding - kernel_size) // stride + 1)
-#         fc1_in_features = filters_number * conv_output_size * conv_output_size
-#
-#         self.fc1 = nn.Linear(fc1_in_features, hidden_layer_dim)
-#         self.fc2 = nn.Linear(hidden_layer_dim, output_dim)
-#
-#         self.architecture = {
-#             "conv_out_channels": filters_number,
-#             "conv_kernel_size": kernel_size,
-#             "conv_stride": stride,
-#             "conv_padding": padding,
-#             "fc1_in_features": fc1_in_features,
-#             "fc1_out_features": hidden_layer_dim,
-#             "fc2_out_features": output_dim
-#         }
-#
-#     def forward(self, x):
-#         x = self.conv(x)
-#         x = F.relu(x)
-#         x = self.flatten(x)
-#         x = F.relu(self.fc1(x))
-#         x = self.fc2(x)
-#         return x
-
-
-class CustomConvNN(nn.Module):
-    def __init__(self, input_dim, output_dim, filters_number, kernel_size, stride, padding, hidden_layer_dim, dropout_prob=0.3):
-        super(CustomConvNN, self).__init__()
-
-        self.identifier = f"{filters_number}_{hidden_layer_dim}"
-
-        self.conv = nn.Conv2d(1, filters_number, kernel_size=kernel_size, stride=stride, padding=padding)
-        self.dropout_conv = nn.Dropout2d(p=dropout_prob)
-
-        conv_output_size = ((input_dim + 2 * padding - kernel_size) // stride + 1)
-        fc1_in_features = filters_number * conv_output_size * conv_output_size
-
-        self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(fc1_in_features, hidden_layer_dim)
-        self.dropout_fc = nn.Dropout(p=dropout_prob)
-        self.fc2 = nn.Linear(hidden_layer_dim, output_dim)
-
-        self.architecture = {
-            "conv_out_channels": filters_number,
-            "conv_kernel_size": kernel_size,
-            "conv_stride": stride,
-            "conv_padding": padding,
-            "fc1_in_features": fc1_in_features,
-            "fc1_out_features": hidden_layer_dim,
-            "fc2_out_features": output_dim,
-            "dropout_probability": dropout_prob
-        }
-
-    def forward(self, x):
-        x = self.conv(x)
-        x = F.relu(x)
-        x = self.dropout_conv(x)
-        x = self.flatten(x)
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.dropout_fc(x)
-        x = self.fc2(x)
-        return x
+conv_hidden_dims = [5, 15, 25, 50, 100, 200, 500]
 
 
 def train_model(model, train_loader, test_loader, l1_bool, early_stopping, device=None,
