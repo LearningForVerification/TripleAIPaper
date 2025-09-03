@@ -15,8 +15,7 @@ logger = logging.getLogger()
 def main(max_prop, timeout):
     current_directory = os.path.dirname(os.path.abspath(__file__))
 
-    experiments_category_folders = ["2-FC", "FC"]
-    experiments_category_folders = ["CONV"]
+    experiments_category_folders = ["2-FC", "FC", "CONV"]
 
     experiments_category_folders = [os.path.join(current_directory, "networks", x) for x in experiments_category_folders]
 

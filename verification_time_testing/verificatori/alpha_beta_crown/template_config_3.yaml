@@ -1,5 +1,5 @@
 general:
-  device: gpu
+  device: cpu
   seed: 100
 
   enable_incomplete_verification: false
@@ -10,6 +10,7 @@ general:
 
 model:
   onnx_path: "{{ onnx_path }}"
+
 
 specification:
   type: lp

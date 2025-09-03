@@ -19,7 +19,7 @@ def star_exp(max_prop, timeout):
     current_directory = os.path.dirname(os.path.abspath(__file__))
 
     # Cartelle delle categorie di esperimenti
-    experiments_category_folders = ["2-FC", "FC"]
+    #experiments_category_folders = ["2-FC"]
     experiments_category_folders = ["CONV"]
 
     experiments_category_folders = [os.path.join(current_directory, "networks", x) for x in
@@ -28,6 +28,8 @@ def star_exp(max_prop, timeout):
     # Sottocategorie
     sub_category_folder = ["0.03/flatten", "not_over_param/flatten", "over_param/flatten", "not_over_param_not_sparse/flatten"]
     sub_category_folder = ["0.03/flatten",  "over_param/flatten", ]
+    sub_category_folder = ["over_param/flatten"]
+
 
     # Cartella proprietà
     property_folder = os.path.join(current_directory, "properties", "0.03")
@@ -99,7 +101,7 @@ def main():
     star_exp(max_prop=args.max_prop, timeout=args.timeout)
 
 def e_test():
-    get_pynever_time(model_path="networks/FC/over_param/fcnn_30.onnx", property_path="properties/0.03/sample_0095_label_4_eps_0.030.vnnlib", timeout=15)
+    get_pynever_time(model_path="networks/CONV/over_param/conv_5.onnx", property_path="properties/0.03/sample_0095_label_4_eps_0.030.vnnlib", timeout=15)
 
 
 if __name__ == "__main__":

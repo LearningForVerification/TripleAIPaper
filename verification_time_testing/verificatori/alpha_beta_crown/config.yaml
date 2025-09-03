@@ -9,9 +9,10 @@ general:
   output_file: out.pkl
 
 model:
-  onnx_path: "C:\Users\andr3\PycharmProjects\TripleAIPaper\verification_time_testing\networks\2-FC\0.03\2x100.onnx"
+  onnx_path: "/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/verificatori/alpha_beta_crown/networks/FC/0.03/100.onnx"
+
 
 specification:
   type: lp
-  vnnlib_path: "C:\Users\andr3\PycharmProjects\TripleAIPaper\verification_time_testing\properties\0.03\sample_0003_label_0_eps_0.030.vnnlib"
+  vnnlib_path: "/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/verificatori/alpha_beta_crown/properties/0.03/sample_0019_label_4_eps_0.030.vnnlib"
   norm: .inf

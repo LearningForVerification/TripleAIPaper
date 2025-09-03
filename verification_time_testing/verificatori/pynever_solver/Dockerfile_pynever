@@ -27,7 +27,7 @@ RUN $CONDA_DIR/bin/conda config --set always_yes yes && \
     $CONDA_DIR/bin/conda create -n myenv python=3.10 -y && \
     $CONDA_DIR/envs/myenv/bin/pip install --upgrade pip && \
     $CONDA_DIR/envs/myenv/bin/pip install torch==2.7.1 torchvision==0.22.1 torchaudio==2.7.1 --index-url https://download.pytorch.org/whl/cu118 && \
-    $CONDA_DIR/envs/myenv/bin/pip install pynever jinja2 pandas
+    $CONDA_DIR/envs/myenv/bin/pip install pynever jinja2 pandas multipledispatch
 
 
 

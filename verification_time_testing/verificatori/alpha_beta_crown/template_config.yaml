@@ -1,5 +1,5 @@
 general:
-  device: gpu
+  device: cpu
   seed: 100
   enable_incomplete_verification: false
   complete_verifier: bab-refine
@@ -23,9 +23,10 @@ solver:
     refine_neuron_time_percentage: 0.8
 
 bab:
-  timeout: 300
+  timeout: 15
   branching:
     reduceop: max
 
 attack:
-  pgd_order: after
+  attack_mode: diversed_PGD
+  pgd_restarts: 100

@@ -1,0 +1,29 @@
+# EXAMPLE for input + relu split.
+general:
+  complete_verifier: bab
+
+model:
+  onnx_path: "{{ onnx_path }}"
+
+specification:
+  type: lp
+  vnnlib_path: "{{ vnnlib_path }}"
+  norm: .inf
+
+solver:
+  beta-crown:
+    iteration: 20
+    lr_beta: 0.03
+    enable_opt_interm_bounds: True
+  mip:
+    parallel_solvers: 32
+    solver_threads: 1
+    refine_neuron_time_percentage: 0.8
+  start_save_best: -1
+bab:
+  branching:
+    candidates: 10
+    reduceop: max
+  timeout: 300
+attack:
+  pgd_order: after

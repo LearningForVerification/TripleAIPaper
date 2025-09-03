@@ -200,7 +200,18 @@ def make_star_from_bounds(bounds: VerboseBounds, layer_id: str) -> ExtendedStar:
         predicate_bias.append(-symbolic_bounds.lower.offset[i] - numeric_bounds.lower[i])
         predicate_bias.append(symbolic_bounds.upper.offset[i] + numeric_bounds.upper[i])
 
-    predicate = LinearFunctions(torch.Tensor(predicate_matrix), torch.Tensor(predicate_bias))
-    identity_transformation = LinearFunctions(torch.eye(input_size), torch.zeros((input_size, 1)))
+    def safe_tensor(x, dtype=torch.float32):
+        if isinstance(x, torch.Tensor):
+            return x.clone().detach().to(dtype)
+        else:
+            return torch.as_tensor(x, dtype=dtype).clone()
 
+    predicate_matrix = safe_tensor(predicate_matrix)
+    predicate_bias = safe_tensor(predicate_bias).view(-1)
+
+    predicate = LinearFunctions(predicate_matrix, predicate_bias)
+    identity_transformation = LinearFunctions(
+        torch.eye(input_size, dtype=torch.float32),
+        torch.zeros((input_size, 1), dtype=torch.float32)
+    )
     return ExtendedStar(predicate, identity_transformation, ref_layer=layer_id)

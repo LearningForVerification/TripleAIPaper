@@ -15,7 +15,7 @@ MAX_EPOCHS = 1
 BATCH_SIZE = 128
 LEARNING_RATE = 0.001
 PATIENCE = 5
-L1_LAMBDA = 0.001
+L1_LAMBDA = 0
 USE_SCHEDULER = False
 EARLY_STOPPING = False
 L1_BOOL = False
@@ -25,7 +25,7 @@ conv_hidden_dims = [5, 15, 25, 50, 100, 200, 500]
 
 
 def train_model(model, train_loader, test_loader, l1_bool, early_stopping, device=None,
-                max_epochs=MAX_EPOCHS, patience=5, l1_lambda=0.001, learning_rate=0.001, use_scheduler=True):
+                max_epochs=MAX_EPOCHS, patience=5, l1_lambda=L1_LAMBDA, learning_rate=0.001, use_scheduler=True):
 
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -116,7 +116,7 @@ def train_model(model, train_loader, test_loader, l1_bool, early_stopping, devic
         'train_loss': train_losses[-1],
         'test_loss': test_losses[-1],
         'best_epoch': best_epoch,
-        'architecture': model.architecture,
+        'architecture': model.identifier,
     }
 
 
