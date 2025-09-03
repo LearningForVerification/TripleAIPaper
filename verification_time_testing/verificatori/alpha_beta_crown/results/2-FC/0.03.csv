@@ -1,0 +1,41 @@
+model path,property path,status,time
+2x100.onnx,sample_0000_label_7_eps_0.030.vnnlib,verified,1.4380037784576416
+2x100.onnx,sample_0000_label_7_eps_0.030.vnnlib.compiled,'ascii' codec can't decode byte 0x80 in position 0: ordinal not in range(128),failed
+2x100.onnx,sample_0001_label_2_eps_0.030.vnnlib,verified,0.4864976406097412
+2x100.onnx,sample_0001_label_2_eps_0.030.vnnlib.compiled,'ascii' codec can't decode byte 0x80 in position 0: ordinal not in range(128),failed
+2x100.onnx,sample_0002_label_1_eps_0.030.vnnlib,verified,0.4474043846130371
+2x100.onnx,sample_0002_label_1_eps_0.030.vnnlib.compiled,'ascii' codec can't decode byte 0x80 in position 0: ordinal not in range(128),failed
+2x100.onnx,sample_0003_label_0_eps_0.030.vnnlib,verified,0.4635138511657715
+2x100.onnx,sample_0003_label_0_eps_0.030.vnnlib.compiled,'ascii' codec can't decode byte 0x80 in position 0: ordinal not in range(128),failed
+2x100.onnx,sample_0004_label_4_eps_0.030.vnnlib,verified,0.4518141746520996
+2x100.onnx,sample_0004_label_4_eps_0.030.vnnlib.compiled,'ascii' codec can't decode byte 0x80 in position 0: ordinal not in range(128),failed
+2x250.onnx,sample_0000_label_7_eps_0.030.vnnlib,verified,0.45610833168029785
+2x250.onnx,sample_0000_label_7_eps_0.030.vnnlib.compiled,'ascii' codec can't decode byte 0x80 in position 0: ordinal not in range(128),failed
+2x250.onnx,sample_0001_label_2_eps_0.030.vnnlib,verified,0.4582960605621338
+2x250.onnx,sample_0001_label_2_eps_0.030.vnnlib.compiled,'ascii' codec can't decode byte 0x80 in position 0: ordinal not in range(128),failed
+2x250.onnx,sample_0002_label_1_eps_0.030.vnnlib,verified,0.45096731185913086
+2x250.onnx,sample_0002_label_1_eps_0.030.vnnlib.compiled,'ascii' codec can't decode byte 0x80 in position 0: ordinal not in range(128),failed
+2x250.onnx,sample_0003_label_0_eps_0.030.vnnlib,verified,0.44199323654174805
+2x250.onnx,sample_0003_label_0_eps_0.030.vnnlib.compiled,'ascii' codec can't decode byte 0x80 in position 0: ordinal not in range(128),failed
+2x250.onnx,sample_0004_label_4_eps_0.030.vnnlib,verified,0.44704556465148926
+2x250.onnx,sample_0004_label_4_eps_0.030.vnnlib.compiled,'ascii' codec can't decode byte 0x80 in position 0: ordinal not in range(128),failed
+2x50.onnx,sample_0000_label_7_eps_0.030.vnnlib,verified,2.9159905910491943
+2x50.onnx,sample_0000_label_7_eps_0.030.vnnlib.compiled,'ascii' codec can't decode byte 0x80 in position 0: ordinal not in range(128),failed
+2x50.onnx,sample_0001_label_2_eps_0.030.vnnlib,verified,0.48523569107055664
+2x50.onnx,sample_0001_label_2_eps_0.030.vnnlib.compiled,'ascii' codec can't decode byte 0x80 in position 0: ordinal not in range(128),failed
+2x50.onnx,sample_0002_label_1_eps_0.030.vnnlib,verified,125.39623403549194
+2x50.onnx,sample_0002_label_1_eps_0.030.vnnlib.compiled,'ascii' codec can't decode byte 0x80 in position 0: ordinal not in range(128),failed
+2x50.onnx,sample_0003_label_0_eps_0.030.vnnlib,verified,0.43467092514038086
+2x50.onnx,sample_0003_label_0_eps_0.030.vnnlib.compiled,'ascii' codec can't decode byte 0x80 in position 0: ordinal not in range(128),failed
+2x50.onnx,sample_0004_label_4_eps_0.030.vnnlib,verified,0.5239379405975342
+2x50.onnx,sample_0004_label_4_eps_0.030.vnnlib.compiled,'ascii' codec can't decode byte 0x80 in position 0: ordinal not in range(128),failed
+2x500.onnx,sample_0000_label_7_eps_0.030.vnnlib,verified,0.49481844902038574
+2x500.onnx,sample_0000_label_7_eps_0.030.vnnlib.compiled,'ascii' codec can't decode byte 0x80 in position 0: ordinal not in range(128),failed
+2x500.onnx,sample_0001_label_2_eps_0.030.vnnlib,verified,0.4811253547668457
+2x500.onnx,sample_0001_label_2_eps_0.030.vnnlib.compiled,'ascii' codec can't decode byte 0x80 in position 0: ordinal not in range(128),failed
+2x500.onnx,sample_0002_label_1_eps_0.030.vnnlib,verified,1.7953822612762451
+2x500.onnx,sample_0002_label_1_eps_0.030.vnnlib.compiled,'ascii' codec can't decode byte 0x80 in position 0: ordinal not in range(128),failed
+2x500.onnx,sample_0003_label_0_eps_0.030.vnnlib,verified,0.47974634170532227
+2x500.onnx,sample_0003_label_0_eps_0.030.vnnlib.compiled,'ascii' codec can't decode byte 0x80 in position 0: ordinal not in range(128),failed
+2x500.onnx,sample_0004_label_4_eps_0.030.vnnlib,verified,2.02150297164917
+2x500.onnx,sample_0004_label_4_eps_0.030.vnnlib.compiled,'ascii' codec can't decode byte 0x80 in position 0: ordinal not in range(128),failed
