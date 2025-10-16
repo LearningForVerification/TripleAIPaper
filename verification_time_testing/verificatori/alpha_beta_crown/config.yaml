@@ -1,18 +1,29 @@
+# EXAMPLE for input + relu split.
 general:
-  device: cpu
-  seed: 100
-
-  enable_incomplete_verification: false
   complete_verifier: bab
 
-  results_file: out.txt
-  output_file: out.pkl
-
 model:
-  onnx_path: "/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/verificatori/alpha_beta_crown/networks/FC/0.03/100.onnx"
-
+  onnx_path: "/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/verificatori/alpha_beta_crown/networks/2-FC/0.03/2x250.onnx"
 
 specification:
   type: lp
-  vnnlib_path: "/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/verificatori/alpha_beta_crown/properties/0.03/sample_0019_label_4_eps_0.030.vnnlib"
+  vnnlib_path: "/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/verificatori/alpha_beta_crown/properties/0.03/sample_0034_label_7_eps_0.030.vnnlib"
   norm: .inf
+
+solver:
+  beta-crown:
+    iteration: 20
+    lr_beta: 0.03
+    enable_opt_interm_bounds: True
+  mip:
+    parallel_solvers: 32
+    solver_threads: 1
+    refine_neuron_time_percentage: 0.8
+  start_save_best: -1
+bab:
+  branching:
+    candidates: 10
+    reduceop: max
+  timeout: 300
+attack:
+  pgd_order: after

@@ -19,6 +19,7 @@ from torch.nn import Module
 from torch.utils.data import DataLoader
 from training.one_rs_param import device
 
+RS_LOSS = False
 
 
 class ModelTrainingManager(ABC):
@@ -519,14 +520,20 @@ class ModelTrainingManager(ABC):
                 loss = criterion(outputs, targets)
             ce_loss = loss.item()
 
-            # Backward pass con scaling
-            with torch.cuda.amp.autocast() if USE_AUTOCAST else nullcontext():
-                rsloss, unstable_nodes = self.get_rsloss(model=model, model_ref=model_ref,
-                                                         architecture_tuple=arch_tuple, input_batch=(inputs, targets),
-                                                         perturbation=perturbation, eps=eps)
+            #Backward pass con scaling
+            if RS_LOSS:
+            
+                with torch.cuda.amp.autocast() if USE_AUTOCAST else nullcontext():
+                    rsloss, unstable_nodes = self.get_rsloss(model=model, model_ref=model_ref,
+                                                             architecture_tuple=arch_tuple, input_batch=(inputs, targets),
+                                                             perturbation=perturbation, eps=eps)
+            else:
+                rsloss = torch.tensor(0.0)
+                unstable_nodes = 0
 
             train_unstable_nodes += unstable_nodes
             total_loss = loss + rsloss_lambda * rsloss
+            total_loss = loss
 
             # Optimize
             scaler.scale(total_loss).backward() if USE_AUTOCAST else total_loss.backward()

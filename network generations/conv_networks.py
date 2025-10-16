@@ -5,13 +5,14 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from training.utils.nn_models import CustomConvNN
+import time
 
 import os
 import csv
 import onnx
 import json
 
-MAX_EPOCHS = 1
+MAX_EPOCHS = 2
 BATCH_SIZE = 128
 LEARNING_RATE = 0.001
 PATIENCE = 5
@@ -44,6 +45,7 @@ def train_model(model, train_loader, test_loader, l1_bool, early_stopping, devic
     train_accuracies, test_accuracies = [], []
 
     for epoch in range(max_epochs):
+        start_time = time.time()
         model.train()
         train_loss, correct, total = 0, 0, 0
 
@@ -85,6 +87,9 @@ def train_model(model, train_loader, test_loader, l1_bool, early_stopping, devic
 
         test_accuracy = 100. * correct / total
         test_loss /= len(test_loader)
+
+        epoch_time = time.time() - start_time
+        print(f"Epoch {epoch} took {epoch_time:.2f} seconds")
 
         if scheduler:
             scheduler.step(test_loss)

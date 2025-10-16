@@ -54,7 +54,7 @@ def objective(trial):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     n_filters = trial.suggest_int("n_filters", 4, 42)
-    kernel_size = trial.suggest_int("kernel_size", 2, 5)
+    kernel_size = trial.suggest_int("kernel_size", 2, 10)
     fc_dim = trial.suggest_categorical("fc_dim", [30, 50, 100, 200, 500, 1000, 2000, 4000, 8000, 10000])
 
     model = ConvNet(n_filters, kernel_size, fc_dim).to(device)

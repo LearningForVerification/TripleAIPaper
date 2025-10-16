@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 import os
 import csv
 import json
+import time
 
 from torchvision import datasets
 from torchvision.transforms import transforms
@@ -131,7 +132,6 @@ def _l_relu_stable(lb, ub, norm_constant=1.0):
 
 def train_model(model, train_loader, test_loader, l1_bool, early_stopping, device=None,
                 max_epochs=MAX_EPOCHS, patience=5, l1_lambda=0.001, learning_rate=0.001, use_scheduler=True):
-
     # Usa CUDA se disponibile
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -153,6 +153,7 @@ def train_model(model, train_loader, test_loader, l1_bool, early_stopping, devic
     test_accuracies = []
 
     for epoch in range(max_epochs):
+        start_time = time.time()
         model.train()
         train_loss = 0
         correct = 0
@@ -208,6 +209,10 @@ def train_model(model, train_loader, test_loader, l1_bool, early_stopping, devic
         test_losses.append(test_loss)
         train_accuracies.append(train_accuracy)
         test_accuracies.append(test_accuracy)
+
+        epoch_time = time.time() - start_time
+        print(
+            f'Epoch {epoch + 1}/{max_epochs} - Time: {epoch_time:.2f}s - Train Loss: {train_loss:.4f} - Test Loss: {test_loss:.4f} - Train Acc: {train_accuracy:.2f}% - Test Acc: {test_accuracy:.2f}%')
 
         if early_stopping:
             if test_loss < best_loss:

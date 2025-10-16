@@ -4,20 +4,30 @@ FROM continuumio/miniconda3
 RUN conda create -n myenv python=3.10 pip -y && \
     conda clean -afy
 
-# Installa git e pulisce cache
+# Usa sempre l'ambiente myenv
+SHELL ["conda", "run", "-n", "myenv", "/bin/bash", "-c"]
+
+# Installa git e dipendenze di sistema
 RUN apt-get update && apt-get install -y git && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Installa PyTorch, auto_LiRPA e altri pacchetti
-RUN conda run -n myenv pip install \
-    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 && \
-    conda run -n myenv pip install \
-    git+https://github.com/Verified-Intelligence/auto_LiRPA.git \
-    jinja2 pandas
+# Installa PyTorch (CUDA 11.8)
+RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
-# Copia i file nell'immagine
+# Installa pacchetti extra
+RUN pip install jinja2 pandas
+
+# Copia i file del progetto
 COPY . /workspace
 WORKDIR /workspace
 
-# Attiva bash all'avvio del container
+# Installa requirements del progetto
+RUN pip install -r complete_verifier/requirements.txt
+
+# Clona e installa auto_LiRPA mantenendo la repo
+RUN git clone https://github.com/Verified-Intelligence/auto_LiRPA && \
+    cd auto_LiRPA && \
+    pip install .
+
+# Avvia bash di default
 CMD ["bash"]

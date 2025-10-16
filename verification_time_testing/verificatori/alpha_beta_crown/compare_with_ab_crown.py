@@ -1,9 +1,53 @@
 import os
-import sys
 import csv
 import logging
+import sys
 import argparse
-from get_alpha_beta_crown_time import get_alpha_beta_crown_time
+from jinja2 import Template
+
+# Assumendo che abcrown.py abbia una funzione principale che accetta un percorso di config
+from complete_verifier.abcrown import ABCROWN
+import time
+
+# Python
+import signal                           # Importa il modulo di sistema per gestire i segnali Unix.
+from contextlib import contextmanager   # Importa il decorator per creare context manager "a mano".
+
+@contextmanager
+def timer(seconds: float):
+    """
+    Limita l'esecuzione del blocco a 'seconds' secondi (Unix only).
+    Solleva TimeoutError se scade.
+    NOTE:
+    - Funziona solo su Unix/Linux.
+    - Deve essere usato nel thread principale (limite dei segnali in Python).
+    - Usa setitimer per supportare secondi frazionari.
+    """
+    def _handler(signum, frame):
+        # Funzione chiamata automaticamente quando arriva SIGALRM.
+        # Solleva un'eccezione per uscire dal blocco 'with'.
+        raise TimeoutError(f"Operazione scaduta dopo {seconds} secondi")
+
+    old_handler = signal.signal(signal.SIGALRM, _handler)
+    # Registra il nostro handler per SIGALRM e conserva il precedente
+    # per poterlo ripristinare in seguito.
+
+    signal.setitimer(signal.ITIMER_REAL, seconds)
+    # Avvia un timer "reale" (tempo wall-clock) che, allo scadere,
+    # invierà SIGALRM al processo dopo 'seconds'.
+
+    try:
+        # Entra nel contesto: il codice chiamante eseguirà il blocco 'with'.
+        yield
+    finally:
+        # Questa parte viene sempre eseguita, sia che il blocco termini
+        # normalmente sia che si verifichi un TimeoutError o un'altra eccezione.
+
+        signal.setitimer(signal.ITIMER_REAL, 0.0)
+        # Disattiva il timer (0.0 significa nessun allarme programmato).
+
+        signal.signal(signal.SIGALRM, old_handler)
+        # Ripristina l'handler dei segnali allo stato precedente.
 
 # Configura il logging
 logging.basicConfig(
@@ -12,42 +56,92 @@ logging.basicConfig(
 )
 logger = logging.getLogger()
 
+
+def get_alpha_beta_crown_time(model_path, property_path, template_path, timeout):
+    # Carica template
+    with open(template_path) as f:
+        template = Template(f.read())
+
+    config = template.render(
+        onnx_path=model_path,
+        vnnlib_path=property_path
+    )
+
+    current_dir = os.path.dirname(__file__)
+    config_path = os.path.join(current_dir, "config.yaml")
+
+    # Scrivi config.yaml
+    with open(config_path, 'w') as f:
+        f.write(config)
+    start_time = time.time()
+    try:
+        with timer(timeout):
+            ABCROWN(["--config", config_path]).main()
+        elapsed = time.time() - start_time
+    except TimeoutError:
+        elapsed = timeout
+        return elapsed, 'timeout'
+    except Exception as e:
+        elapsed = 10000000
+        return elapsed, 'error'
+
+    # Leggi risultato da out.txt
+    out_file = os.path.join(current_dir, "out.txt")
+    with open(out_file, "r") as f:
+        content = f.read()
+        print(content)
+
+    if 'sat' in content and 'unsat' not in content:
+        return elapsed, 'not_verified'
+    elif 'timeout' in content:
+        return elapsed, 'unknown'
+    elif 'unsat' in content:
+        return elapsed, 'verified'
+    else:
+        return elapsed, 'failed'
+
+
 def main(max_prop, timeout):
     current_directory = os.path.dirname(os.path.abspath(__file__))
 
+    # Cartelle esperimenti
     experiments_category_folders = ["2-FC", "FC", "CONV"]
+    experiments_category_folders = ["CONV"]
 
     experiments_category_folders = [os.path.join(current_directory, "networks", x) for x in experiments_category_folders]
 
     sub_category_folder = ["0.03", "over_param"]
 
+    # Cartella proprietà
     property_folder = os.path.join(current_directory, "properties", "0.03")
     if not os.path.isdir(property_folder):
         raise Exception(f"Directory '{property_folder}' not found")
 
+    # Controllo cartelle reti
     for folder in experiments_category_folders:
         if not os.path.isdir(folder):
             raise Exception(f"Directory '{folder}' not found")
-
         for sub_folder in sub_category_folder:
             sub_path = os.path.join(folder, sub_folder)
             if not os.path.isdir(sub_path):
                 raise Exception(f"Directory '{sub_path}' not found")
 
+    # Creazione cartella risultati
     results_base = os.path.join(current_directory, "results")
     os.makedirs(results_base, exist_ok=True)
 
+    # Inizializza file CSV
     for folder in experiments_category_folders:
         category_name = os.path.basename(folder)
         result_category_path = os.path.join(results_base, category_name)
         os.makedirs(result_category_path, exist_ok=True)
-
         for sub_folder in sub_category_folder:
             csv_path = os.path.join(result_category_path, f"{sub_folder}.csv")
             with open(csv_path, mode='w', newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow(["model path", "property path", "status", "time"])
 
+    # Iterazione reti e proprietà
     for folder in experiments_category_folders:
         category_name = os.path.basename(folder)
         for sub_folder in sub_category_folder:
@@ -61,16 +155,21 @@ def main(max_prop, timeout):
                     if not nn_file.endswith(".onnx"):
                         continue
 
-                    nn_path = os.path.join(sub_path, nn_file)
+                    nn_path = os.path.abspath(os.path.join(sub_path, nn_file))
                     logger.info(f"➡️ Valutazione rete: {nn_file}")
 
-                    prop_files = sorted(os.listdir(property_folder))[:max_prop]
+                    prop_files = [f for f in sorted(os.listdir(property_folder)) if f.endswith('.vnnlib')][:max_prop]
 
                     for i, prop_file in enumerate(prop_files, start=1):
-                        prop_path = os.path.join(property_folder, prop_file)
+
+                        if not prop_file.endswith(".vnnlib"):
+                            logger.info(f"   ⏭️ Skippata proprietà non .vnnlib: {prop_file}")
+                            continue
+
+                        prop_path = os.path.abspath(os.path.join(property_folder, prop_file))
                         logger.info(f"   └─ Proprietà {i}/{max_prop}: {prop_file}")
 
-                        template_path = os.path.join(current_directory, "template_config.yaml")
+                        template_path = os.path.abspath(os.path.join(current_directory, "template_config_5.yaml"))
                         elapsed, status = get_alpha_beta_crown_time(nn_path, prop_path, template_path, timeout=timeout)
 
                         writer.writerow([nn_file, prop_file, status, elapsed])
@@ -79,8 +178,8 @@ def main(max_prop, timeout):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Valutazione reti con alpha_beta_crown.")
-    parser.add_argument('--max_prop', type=int, default=300, help='Numero massimo di proprietà da analizzare')
-    parser.add_argument('--timeout', type=int, default=60, help='Timeout per l\'analisi di ogni proprietà (in secondi)')
+    parser.add_argument('--max_prop', type=int, default=100, help='Numero massimo di proprietà da analizzare')
+    parser.add_argument('--timeout', type=float, default=64, help='Timeout per l\'analisi di ogni proprietà (in secondi)')
     args = parser.parse_args()
 
     main(args.max_prop, args.timeout)

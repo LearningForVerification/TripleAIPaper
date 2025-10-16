@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
-
+import time
 MAX_EPOCHS = 30
 
 
@@ -134,10 +134,12 @@ def train_model(model, train_loader, test_loader, l1_bool, early_stopping, devic
     train_losses, test_losses, train_accs, test_accs = [], [], [], []
 
     for epoch in range(max_epochs):
+        start_time = time.time()
         model.train()
         train_loss, correct, total = 0, 0, 0
         for x, y in train_loader:
             x, y = x.to(device), y.to(device)
+            print(device)
             optimizer.zero_grad()
             out = model(x)
             loss = criterion(out, y)
@@ -153,33 +155,16 @@ def train_model(model, train_loader, test_loader, l1_bool, early_stopping, devic
         train_losses.append(train_loss / len(train_loader))
         train_accs.append(train_acc)
 
-        model.eval()
-        test_loss, correct, total = 0, 0, 0
-        with torch.no_grad():
-            for x, y in test_loader:
-                x, y = x.to(device), y.to(device)
-                out = model(x)
-                loss = criterion(out, y)
-                test_loss += loss.item()
-                correct += out.argmax(1).eq(y).sum().item()
-                total += y.size(0)
-        test_acc = 100 * correct / total
-        test_losses.append(test_loss / len(test_loader))
-        test_accs.append(test_acc)
-        if scheduler:
-            scheduler.step(test_loss)
 
-        if early_stopping:
-            if test_loss < best_loss:
-                best_loss = test_loss
-                best_model = model.state_dict()
-                best_epoch = epoch
-                patience_counter = 0
-            else:
-                patience_counter += 1
-                if patience_counter >= patience:
-                    print(f"Early stopping at epoch {epoch}")
-                    break
+
+        epoch_time = time.time() - start_time
+        print(f'Epoch {epoch} completed in {epoch_time:.2f} seconds')
+
+
+        patience_counter += 1
+        if patience_counter >= patience:
+            print(f"Early stopping at epoch {epoch}")
+            break
 
     if early_stopping and best_model:
         model.load_state_dict(best_model)
