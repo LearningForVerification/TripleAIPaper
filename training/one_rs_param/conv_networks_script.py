@@ -69,7 +69,7 @@ def main():
 
 
     elif dataset_name == "FMNIST":
-        fc_layers_dim = [5, 15, 25, 50, 100, 200, 500]
+        fc_layers_dim = [15, 25, 50, 100, 200, 500]
         conv_filters_dim = 17
         kernel_size = 2
 
