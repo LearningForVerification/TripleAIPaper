@@ -4,61 +4,30 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
+from training.utils.nn_models import CustomConvNN
+import time
+
 import os
 import csv
 import onnx
 import json
+import logging
 
-MAX_EPOCHS = 1
+MAX_EPOCHS = 2000
 BATCH_SIZE = 128
 LEARNING_RATE = 0.001
 PATIENCE = 5
-L1_LAMBDA = 0.001
+L1_LAMBDA = 0
 USE_SCHEDULER = False
 EARLY_STOPPING = False
 L1_BOOL = False
-DATASET_NAME = "MNIST"  # oppure "FMNIST"
+DATASET_NAME = "FMNIST"  # oppure "FMNIST"
 
-conv_hidden_dims = [30, 50, 100, 200, 500, 1000]
-
-
-class CustomConvNN(nn.Module):
-    def __init__(self, input_dim, output_dim, filters_number, kernel_size, stride, padding, hidden_layer_dim):
-        super(CustomConvNN, self).__init__()
-
-        self.identifier = f"{filters_number}_{hidden_layer_dim}"
-
-        self.conv = nn.Conv2d(1, filters_number, kernel_size=kernel_size, stride=stride, padding=padding)
-        self.flatten = nn.Flatten()
-
-        conv_output_size = ((input_dim + 2 * padding - kernel_size) // stride + 1)
-        fc1_in_features = filters_number * conv_output_size * conv_output_size
-
-        self.fc1 = nn.Linear(fc1_in_features, hidden_layer_dim)
-        self.fc2 = nn.Linear(hidden_layer_dim, output_dim)
-
-        self.architecture = {
-            "conv_out_channels": filters_number,
-            "conv_kernel_size": kernel_size,
-            "conv_stride": stride,
-            "conv_padding": padding,
-            "fc1_in_features": fc1_in_features,
-            "fc1_out_features": hidden_layer_dim,
-            "fc2_out_features": output_dim
-        }
-
-    def forward(self, x):
-        x = self.conv(x)
-        x = F.relu(x)
-        x = self.flatten(x)
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
+conv_hidden_dims = [5, 15, 25, 50, 100, 200, 500]
 
 
 def train_model(model, train_loader, test_loader, l1_bool, early_stopping, device=None,
-                max_epochs=MAX_EPOCHS, patience=5, l1_lambda=0.001, learning_rate=0.001, use_scheduler=True):
-
+                max_epochs=MAX_EPOCHS, patience=5, l1_lambda=L1_LAMBDA, learning_rate=0.001, use_scheduler=True):
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -75,7 +44,11 @@ def train_model(model, train_loader, test_loader, l1_bool, early_stopping, devic
     train_losses, test_losses = [], []
     train_accuracies, test_accuracies = [], []
 
+    # Setup logger
+    logger = logging.getLogger(__name__)
+
     for epoch in range(max_epochs):
+        start_time = time.time()
         model.train()
         train_loss, correct, total = 0, 0, 0
 
@@ -118,6 +91,17 @@ def train_model(model, train_loader, test_loader, l1_bool, early_stopping, devic
         test_accuracy = 100. * correct / total
         test_loss /= len(test_loader)
 
+        epoch_time = time.time() - start_time
+
+        # Log progress every 10 epochs or on first/last epoch
+        if epoch % 10 == 0 or epoch == max_epochs - 1:
+            logger.info(
+                f"Epoch {epoch}/{max_epochs} - "
+                f"Train Loss: {train_loss:.4f}, Train Acc: {train_accuracy:.2f}% - "
+                f"Test Loss: {test_loss:.4f}, Test Acc: {test_accuracy:.2f}% - "
+                f"Time: {epoch_time:.2f}s"
+            )
+
         if scheduler:
             scheduler.step(test_loss)
 
@@ -135,11 +119,12 @@ def train_model(model, train_loader, test_loader, l1_bool, early_stopping, devic
             else:
                 patience_counter += 1
                 if patience_counter >= patience:
-                    print(f'Early stopping at epoch {epoch}')
+                    logger.info(f'Early stopping at epoch {epoch}')
                     break
 
     if early_stopping and best_model is not None:
         model.load_state_dict(best_model)
+        logger.info(f'Loaded best model from epoch {best_epoch}')
 
     return {
         'model': model,
@@ -148,13 +133,19 @@ def train_model(model, train_loader, test_loader, l1_bool, early_stopping, devic
         'train_loss': train_losses[-1],
         'test_loss': test_losses[-1],
         'best_epoch': best_epoch,
-        'architecture': model.architecture,
+        'architecture': model.identifier,
+        'all_train_losses': train_losses,
+        'all_test_losses': test_losses,
+        'all_train_accuracies': train_accuracies,
+        'all_test_accuracies': test_accuracies,
     }
 
 
 def save_models(results, save_dir='models'):
     os.makedirs(save_dir, exist_ok=True)
     csv_path = os.path.join(save_dir, 'results.csv')
+
+    logger = logging.getLogger(__name__)
 
     with open(csv_path, 'w', newline='') as f:
         writer = csv.writer(f)
@@ -163,50 +154,97 @@ def save_models(results, save_dir='models'):
         for key, res in results.items():
             model = res['model']
             model_name = f"conv_{key}"
+
+            # Save PyTorch model
             model_path = os.path.join(save_dir, f"{model_name}.pth")
             torch.save(model.state_dict(), model_path)
+            logger.info(f"Saved model weights: {model_path}")
 
-            dummy_input = torch.randn(1, 1, 28, 28).to(next(model.parameters()).device)
-            onnx_path = os.path.join(save_dir, f"{model_name}.onnx")
-            torch.onnx.export(model, dummy_input, onnx_path)
+            # Save ONNX model
+            try:
+                dummy_input = torch.randn(1, 1, 28, 28).to(next(model.parameters()).device)
+                onnx_path = os.path.join(save_dir, f"{model_name}.onnx")
+                torch.onnx.export(
+                    model,
+                    dummy_input,
+                    onnx_path,
+                    export_params=True,
+                    opset_version=11,
+                    do_constant_folding=True,
+                    input_names=['input'],
+                    output_names=['output']
+                )
+                logger.info(f"Saved ONNX model: {onnx_path}")
+            except Exception as e:
+                logger.warning(f"Failed to export ONNX model for {model_name}: {e}")
 
+            # Save architecture
             arch_path = os.path.join(save_dir, f'{model_name}_architecture.json')
             with open(arch_path, 'w') as arch_file:
-                json.dump(res['architecture'], arch_file)
+                json.dump(res['architecture'], arch_file, indent=2)
 
             writer.writerow([
-                model.identifier,
-                res['train_acc'],
-                res['test_acc'],
-                res['train_loss'],
-                res['test_loss'],
+                res['architecture'],
+                f"{res['train_acc']:.2f}",
+                f"{res['test_acc']:.2f}",
+                f"{res['train_loss']:.4f}",
+                f"{res['test_loss']:.4f}",
                 res['best_epoch']
             ])
 
+    logger.info(f"Results saved to {csv_path}")
+
 
 def main():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # Setup logger
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    logger = logging.getLogger(__name__)
 
-    transform = transforms.Compose([transforms.ToTensor()])
-    dataset_cls = datasets.MNIST if DATASET_NAME == "MNIST" else datasets.FashionMNIST
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logger.info(f"Using device: {device}")
+
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,))  # MNIST normalization
+    ])
+
+    if DATASET_NAME == "MNIST":
+        dataset_cls = datasets.MNIST
+    elif DATASET_NAME == "FMNIST":
+        dataset_cls = datasets.FashionMNIST
+    else:
+        raise ValueError(f"Dataset {DATASET_NAME} non supportato")
 
     trainset = dataset_cls(root='./data', train=True, download=True, transform=transform)
     testset = dataset_cls(root='./data', train=False, download=True, transform=transform)
 
-    train_loader = DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True)
-    test_loader = DataLoader(testset, batch_size=BATCH_SIZE, shuffle=False)
+    train_loader = DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True, num_workers=2, pin_memory=True)
+    test_loader = DataLoader(testset, batch_size=BATCH_SIZE, shuffle=False, num_workers=2, pin_memory=True)
 
     input_dim = 28
     output_dim = 10
-    stride = 1
-    padding = 0
-    kernel_size = 5
-    filters_number = 17
+
+    if DATASET_NAME == "MNIST":
+        stride = 1
+        padding = 0
+        kernel_size = 5
+        filters_number = 17
+    elif DATASET_NAME == "FMNIST":
+        stride = 1
+        padding = 0
+        kernel_size = 2
+        filters_number = 17
 
     results = {}
 
     for hidden_dim in conv_hidden_dims:
-        print(f"\nTraining conv model with hidden dim {hidden_dim}")
+        logger.info(f"\n{'=' * 50}")
+        logger.info(f"Training conv model with hidden dim {hidden_dim}")
+        logger.info(f"{'=' * 50}")
+
         model = CustomConvNN(input_dim, output_dim, filters_number, kernel_size, stride, padding, hidden_dim)
         result = train_model(
             model=model,
@@ -223,7 +261,11 @@ def main():
         )
         results[hidden_dim] = result
 
+        logger.info(f"Completed training for hidden_dim={hidden_dim}")
+        logger.info(f"Final Test Accuracy: {result['test_acc']:.2f}%")
+
     save_models(results)
+    logger.info("All models trained and saved successfully!")
 
 
 if __name__ == "__main__":

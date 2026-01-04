@@ -71,7 +71,7 @@ def main():
     elif dataset_name == "FMNIST":
         fc_layers_dim = [5, 15, 25, 50, 100, 200, 500]
         conv_filters_dim = 17
-        kernel_size = 5
+        kernel_size = 2
 
     arch_tuple = [(input_dim, output_dim, conv_filters_dim, kernel_size, stride, padding, fc_layers_dim[index])
                   for index, _ in enumerate(fc_layers_dim)]

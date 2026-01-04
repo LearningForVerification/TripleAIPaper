@@ -19,7 +19,7 @@ from torch.nn import Module
 from torch.utils.data import DataLoader
 from training.one_rs_param import device
 
-RS_LOSS = False
+RS_LOSS = True
 
 
 class ModelTrainingManager(ABC):
@@ -533,7 +533,6 @@ class ModelTrainingManager(ABC):
 
             train_unstable_nodes += unstable_nodes
             total_loss = loss + rsloss_lambda * rsloss
-            total_loss = loss
 
             # Optimize
             scaler.scale(total_loss).backward() if USE_AUTOCAST else total_loss.backward()

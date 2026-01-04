@@ -83,6 +83,55 @@ def calculate_rs_loss_regularizer_fc_2_layers(model,  hidden_layer_dim, lb, ub, 
             assert 0 - 0.1 <= rs_loss <= 1 + 0.1, f"RS LOSS not in 0, 1 range: {rs_loss}, rs_loss1={rs_loss_1}, rs_loss2={rs_loss_2}, hidden_layer_dim={hidden_layer_dim}, lb1={lb_1.shape}, ub1={ub_1.shape}, lb2={lb_2.shape}, ub2={ub_2.shape}"
     return rs_loss, n_unstable_nodes
 
+def calculate_rs_loss_regularizer_resnet18(model, lb, ub, normalized=True):
+    """
+    Calcola RS loss e numero di neuroni instabili per i due layer fully connected della ResNet-18.
+    lb, ub: lower e upper bound del batch pre-fc
+    """
+    W1, b1 = model.fc1.weight, model.fc1.bias
+    W2, b2 = model.fc2.weight, model.fc2.bias
+
+    hidden_dim1 = W1.shape[0]  # numero di neuroni in fc1
+    hidden_dim2 = W2.shape[0]  # numero di neuroni in fc2 (di solito num_classes)
+
+    with torch.cuda.amp.autocast():
+        # Propagazione intervalli
+        lb_1, ub_1 = interval_arithmetic_fc(lb, ub, W1, b1)
+        lb_2, ub_2 = interval_arithmetic_fc(lb_1, ub_1, W2, b2)
+
+        # RS loss per ciascun layer
+        rs_loss_1 = _l_relu_stable(lb_1, ub_1)
+        rs_loss_2 = _l_relu_stable(lb_2, ub_2)
+        rs_loss = rs_loss_1 + rs_loss_2
+
+        # Neuroni instabili
+        n_unstable_nodes = ((lb_1 * ub_1 < 0).sum(dim=1).float().mean().item() +
+                            (lb_2 * ub_2 < 0).sum(dim=1).float().mean().item())
+
+        if normalized:
+            # Normalizza separatamente per ciascun layer
+            rs_loss = (rs_loss_1 / hidden_dim1 + rs_loss_2 / hidden_dim2) / 2
+            rs_loss = (rs_loss + 1) / 2
+            assert -0.1 <= rs_loss <= 1.1, f"RS LOSS out of range: {rs_loss}"
+
+    return rs_loss, n_unstable_nodes
+
+
+    with torch.cuda.amp.autocast():
+        # Forward pass con mixed precision
+        lb_1, ub_1 = interval_arithmetic_fc(lb, ub, W1, b1)
+        lb_2, ub_2 = interval_arithmetic_fc(lb_1, ub_1, W2, b2)
+        rs_loss_1 = _l_relu_stable(lb_1, ub_1)
+        rs_loss_2 = _l_relu_stable(lb_2, ub_2)
+        rs_loss = rs_loss_1 + rs_loss_2
+        n_unstable_nodes = (lb_1 * ub_1 < 0).sum(dim=1).float().mean().item() + (lb_2 * ub_2 < 0).sum(dim=1).float().mean().item()
+
+        if normalized:
+            rs_loss = rs_loss / (hidden_layer_dim * 2)
+            rs_loss = (rs_loss + 1) / 2
+            assert 0 - 0.1 <= rs_loss <= 1 + 0.1, f"RS LOSS not in 0, 1 range: {rs_loss}, rs_loss1={rs_loss_1}, rs_loss2={rs_loss_2}, hidden_layer_dim={hidden_layer_dim}, lb1={lb_1.shape}, ub1={ub_1.shape}, lb2={lb_2.shape}, ub2={ub_2.shape}"
+    return rs_loss, n_unstable_nodes
+
 def calculate_rs_loss_regularizer_conv(model_lirpa, architecture_tuple, input_batch, perturbation, method, normalized):
     optimize_bound_args = {
         "enable_beta_crown": False,

@@ -5,7 +5,7 @@ import torch
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Device: {device}")
 
-DATASET_NAME = "FMNIST"
+DATASET_NAME = "CIFAR10"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 

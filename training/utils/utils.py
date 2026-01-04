@@ -229,12 +229,15 @@ def write_results_on_csv(file_path, dict_to_write):
 #
 def save_models(model, identifier, folder, device, dummy_input=None):
     # Export the models to ONNX format
-    if dummy_input is not None:
-        dummy_input = torch.rand(1, 1, 28, 28).to(device)  # Ensure input is on the same device
+    if dummy_input is  None:
+        dummy_input = torch.rand(1, 1, 28, 28).to(device)
+    else:
+        dummy_input = dummy_input.to(device)
 
     # Save the model in ONNX and PyTorch formats
+    model.eval()
     torch.onnx.export(
-        model,
+        model.to(device),
         dummy_input,
         f"{folder}/{identifier}.onnx",
         input_names=['input'],
