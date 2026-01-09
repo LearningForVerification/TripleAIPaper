@@ -1,6 +1,7 @@
 # EXAMPLE for input + relu split.
 general:
   complete_verifier: bab
+  results_file: out.txt
 
 model:
   onnx_path: "{{ onnx_path }}"

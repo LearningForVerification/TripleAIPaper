@@ -1,13 +1,14 @@
 # EXAMPLE for input + relu split.
 general:
   complete_verifier: bab
+  results_file: out.txt
 
 model:
-  onnx_path: "/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/verificatori/alpha_beta_crown/networks/2-FC/0.03/2x250.onnx"
+  onnx_path: "/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/verificatori/alpha_beta_crown/networks/FMNIST/CONV/0.03/17_100.onnx"
 
 specification:
   type: lp
-  vnnlib_path: "/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/verificatori/alpha_beta_crown/properties/0.03/sample_0034_label_7_eps_0.030.vnnlib"
+  vnnlib_path: "/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/verificatori/alpha_beta_crown/properties/FMNIST/0.03/sample_0011_label_5_eps_0.0300.vnnlib"
   norm: .inf
 
 solver:

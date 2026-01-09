@@ -590,76 +590,91 @@ class BoundsRefinement:
         return 0
 
     @staticmethod
-    def optimise_input_bounds_for_branch(fixed_neurons: dict, bounds: VerboseBounds, nn) -> VerboseBounds | None:
+    def optimise_input_bounds_for_branch(
+            fixed_neurons: dict,
+            bounds: VerboseBounds,
+            nn
+    ) -> VerboseBounds | None:
         """
         Optimises input bounds by building a MILP that has
-        input variables and, for each fixed neuron, a constraint using its symbolic lower or upper bound.
-        The solves for each input variable two optimisation problems: minimising and maximising it.
+        input variables and, for each fixed neuron, a constraint using its symbolic
+        lower or upper bound. Then solves, for each input variable, two optimisation
+        problems: minimising and maximising it.
         """
+
         input_bounds = bounds.numeric_pre_bounds[nn.get_first_node().identifier]
         n_input_dimensions = input_bounds.get_size()
 
         solver = pywraplp.Solver("", pywraplp.Solver.CLP_LINEAR_PROGRAMMING)
 
         input_vars = np.array([
-            solver.NumVar(input_bounds.get_lower()[j].item(), input_bounds.get_upper()[j].item(), f'alpha_{j}')
-            for j in range(n_input_dimensions)])
+            solver.NumVar(
+                input_bounds.get_lower()[j].item(),
+                input_bounds.get_upper()[j].item(),
+                f'alpha_{j}'
+            )
+            for j in range(n_input_dimensions)
+        ])
 
-        # The constraints from fixing the neurons
-        equations = BoundsRefinement.get_equations_from_fixed_neurons(fixed_neurons, bounds, nn)
+        # Constraints from fixed neurons
+        equations = BoundsRefinement.get_equations_from_fixed_neurons(
+            fixed_neurons, bounds, nn
+        )
 
-        # This way of encoding allows to access the dual solution
         worker_constraints = {}
         infinity = solver.infinity()
-        for constr_n in range(len(equations.matrix)):
-            # solver.Add(input_vars.dot(equations.matrix[i]) + equations.offset[i] <= 0)
-            # -infinity <= eq <= 0
-            worker_constraints[constr_n] = solver.Constraint(-infinity, -equations.offset[constr_n].item(),
-                                                             'c[%i]' % constr_n)
-            for input_var_n in range(n_input_dimensions):
-                worker_constraints[constr_n].SetCoefficient(input_vars[input_var_n],
-                                                            equations.matrix[constr_n][input_var_n].item())
 
-        ## The actual optimisation part
+        for constr_n in range(len(equations.matrix)):
+            worker_constraints[constr_n] = solver.Constraint(
+                -infinity,
+                -equations.offset[constr_n].item(),
+                f'c[{constr_n}]'
+            )
+            for input_var_n in range(n_input_dimensions):
+                worker_constraints[constr_n].SetCoefficient(
+                    input_vars[input_var_n],
+                    equations.matrix[constr_n][input_var_n].item()
+                )
+
+        # Optimisation
         new_input_bounds = input_bounds.clone()
         bounds_improved = False
 
-        dimensions_to_consider = torch.Tensor(range(n_input_dimensions))
-        # An optimisation for very high-dimensional inputs
-        if n_input_dimensions > BoundsRefinement.INPUT_DIMENSIONS_TO_REFINE:
-            # we will only consider the dimensions
-            # with the coefficient that is large enough in absolute terms
-            # and at most BoundsRefinement.INPUT_DIMENSIONS_TO_REFINE
+        dimensions_to_consider = torch.arange(n_input_dimensions)
 
-            # This part needs checking
-            percentage = 1 - BoundsRefinement.INPUT_DIMENSIONS_TO_REFINE / n_input_dimensions
-            max_coefs = abs(equations.matrix).max(axis=0)
+        # High-dimensional optimisation heuristic
+        if n_input_dimensions > BoundsRefinement.INPUT_DIMENSIONS_TO_REFINE:
+            percentage = 1 - (
+                    BoundsRefinement.INPUT_DIMENSIONS_TO_REFINE / n_input_dimensions
+            )
+
+            # FIX: estraiamo SOLO i values dal torch.max
+            max_coefs = torch.abs(equations.matrix).max(axis=0).values
+
             cutoff_c = torch.quantile(max_coefs, percentage)
-            all_dimensions = torch.Tensor(range(n_input_dimensions))
-            dimensions_to_consider = all_dimensions[(max_coefs > cutoff_c)]
+
+            all_dimensions = torch.arange(n_input_dimensions)
+            dimensions_to_consider = all_dimensions[max_coefs > cutoff_c]
 
         for idx in dimensions_to_consider:
             i_dim = int(idx)
+
+            # Maximise
             solver.Maximize(input_vars[i_dim])
             status = solver.Solve()
 
             new_lower, new_upper = input_bounds.get_dimension_bounds(i_dim)
+
             if status == pywraplp.Solver.INFEASIBLE:
                 return None
 
             elif status == pywraplp.Solver.OPTIMAL:
-                if input_vars[i_dim].solution_value() < new_upper:
-                    # dual_sol = [worker_constraints[i].dual_value() for i in worker_constraints]
-                    # self.logger.debug(f"Dual solution: {dual_sol}")
-
-                    # eq_mult = torch.Tensor([worker_constraints[i].dual_value() for i in worker_constraints])
-                    # coef = -(eq_mult.reshape(-1, 1) * equations.matrix).sum(axis=0)
-                    # shift = -(eq_mult * equations.offset).sum()
-                    # print("Equation", list(coef), shift)
-
-                    new_upper = input_vars[i_dim].solution_value()
+                sol = input_vars[i_dim].solution_value()
+                if sol < new_upper:
+                    new_upper = sol
                     bounds_improved = True
 
+            # Minimise
             solver.Minimize(input_vars[i_dim])
             status = solver.Solve()
 
@@ -667,16 +682,9 @@ class BoundsRefinement:
                 return None
 
             elif status == pywraplp.Solver.OPTIMAL:
-                if input_vars[i_dim].solution_value() > new_lower:
-                    # dual_sol = [worker_constraints[i].dual_value() for i in worker_constraints]
-                    # self.logger.debug(f"Dual solution: {dual_sol}")
-
-                    # eq_mult = torch.Tensor([worker_constraints[i].dual_value() for i in worker_constraints])
-                    # coef = -(eq_mult.reshape(-1, 1) * equations.matrix).sum(axis=0)
-                    # shift = -(eq_mult * equations.offset).sum()
-                    # print("Equation", list(coef), shift)
-
-                    new_lower = input_vars[i_dim].solution_value()
+                sol = input_vars[i_dim].solution_value()
+                if sol > new_lower:
+                    new_lower = sol
                     bounds_improved = True
 
             new_input_bounds.get_lower()[i_dim] = new_lower

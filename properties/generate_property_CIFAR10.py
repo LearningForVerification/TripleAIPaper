@@ -1,10 +1,13 @@
 import os
 import argparse
+import csv
 import numpy as np
 from torchvision import datasets
 from torchvision.transforms import transforms
 
-
+# ============================================================
+# Property generation
+# ============================================================
 def generate_local_robustness_property(
     input_sample,
     noise_level,
@@ -54,10 +57,14 @@ def generate_local_robustness_property(
         f.write("))\n")
 
 
+# ============================================================
+# Argument parsing
+# ============================================================
 def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Generate VNNLIB local robustness properties"
     )
+
     parser.add_argument(
         "--property_folder",
         type=str,
@@ -80,13 +87,31 @@ def parse_arguments():
         "--dataset",
         type=str,
         default="MNIST",
-        choices=["MNIST", "FMNIST", "CIFAR10"],
+        choices=["MNIST", "FMNIST", "CIFAR10", "CUSTOM"],
         help="Dataset to use"
     )
+
+    # -------- CUSTOM dataset arguments --------
+    parser.add_argument(
+        "--custom_test_csv",
+        type=str,
+        default=None,
+        help="Path to custom CSV test set (required if dataset=CUSTOM)"
+    )
+    parser.add_argument(
+        "--custom_num_classes",
+        type=int,
+        default=10,
+        help="Number of output classes for CUSTOM dataset"
+    )
+
     return parser.parse_args()
 
 
-def load_dataset(dataset_name):
+# ============================================================
+# Dataset loaders
+# ============================================================
+def load_torchvision_dataset(dataset_name):
     transform = transforms.ToTensor()
 
     if dataset_name == "MNIST":
@@ -99,37 +124,79 @@ def load_dataset(dataset_name):
     raise ValueError(f"Unsupported dataset: {dataset_name}")
 
 
+def load_custom_csv_dataset(csv_path, max_samples=None):
+    samples = []
+
+    with open(csv_path, newline="") as f:
+        reader = csv.reader(f)
+        header = next(reader)  # skip header
+
+        for idx, row in enumerate(reader):
+            # CSV format: pixel0,...,pixelN,label
+            label = int(float(row[-1]))  # <-- convertiamo float -> int
+            pixels = np.array(row[:-1], dtype=np.float32)
+
+            samples.append((pixels, label))
+
+            if max_samples is not None and len(samples) >= max_samples:
+                break
+
+    return samples
+
+
+# ============================================================
+# Main
+# ============================================================
 if __name__ == "__main__":
     args = parse_arguments()
 
     if args.epsilon < 0:
-        raise ValueError(f"epsilon must be non-negative, got {args.epsilon}")
+        raise ValueError("epsilon must be non-negative")
     if args.test_samples <= 0:
-        raise ValueError(f"test_samples must be positive, got {args.test_samples}")
+        raise ValueError("test_samples must be positive")
 
     os.makedirs(args.property_folder, exist_ok=True)
 
-    test_dataset, num_classes = load_dataset(args.dataset)
+    # ------------------------------------------------------------
+    # Load dataset
+    # ------------------------------------------------------------
+    if args.dataset == "CUSTOM":
+        if args.custom_test_csv is None:
+            raise ValueError(
+                "--custom_test_csv must be provided when dataset=CUSTOM"
+            )
 
-    if args.test_samples > len(test_dataset):
-        raise ValueError(
-            f"Requested {args.test_samples} samples, but dataset has only {len(test_dataset)}"
+        print("Using CUSTOM dataset")
+        samples = load_custom_csv_dataset(
+            args.custom_test_csv,
+            args.test_samples
         )
+        num_classes = args.custom_num_classes
 
-    print(f"Generating {args.test_samples} properties")
+    else:
+        dataset, num_classes = load_torchvision_dataset(args.dataset)
+        samples = [dataset[i] for i in range(args.test_samples)]
+
+    # ------------------------------------------------------------
+    # Generation
+    # ------------------------------------------------------------
+    print(f"Generating {len(samples)} properties")
     print(f"Dataset: {args.dataset}")
     print(f"Epsilon: {args.epsilon}")
     print(f"Output folder: {args.property_folder}")
 
     success_count = 0
 
-    for idx in range(args.test_samples):
-        input_tensor, label = test_dataset[idx]
-        input_np = input_tensor.numpy()
+    for idx, sample in enumerate(samples):
+        if args.dataset == "CUSTOM":
+            input_np, label = sample
+        else:
+            input_tensor, label = sample
+            input_np = input_tensor.numpy()
 
-        # CIFAR10: CHW -> HWC
-        if input_np.ndim == 3 and input_np.shape[0] == 3:
-            input_np = np.transpose(input_np, (1, 2, 0))
+            # CIFAR10: CHW → HWC
+            if input_np.ndim == 3 and input_np.shape[0] == 3:
+                input_np = np.transpose(input_np, (1, 2, 0))
 
         property_path = os.path.join(
             args.property_folder,
@@ -149,10 +216,10 @@ if __name__ == "__main__":
             print(f"[✗] Failed on sample {idx}: {e}")
 
         if (idx + 1) % 10 == 0:
-            print(f"Progress: {idx + 1}/{args.test_samples}")
+            print(f"Progress: {idx + 1}/{len(samples)}")
 
     print(
         f"\nGeneration complete: "
-        f"{success_count}/{args.test_samples} properties saved to "
+        f"{success_count}/{len(samples)} properties saved to "
         f"{args.property_folder}"
     )

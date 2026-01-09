@@ -66,8 +66,8 @@ def sslp_verify_single_worker(model_file: str, property_file: str, timeout: int,
 
         prop = verprop.VnnLibProperty(prop_path)
 
-        ver_params = verparams.SSLPVerificationParameters(heuristic="mixed", neurons_to_refine=[2, 2])
-        ver_strategy = veralg.SSLPVerification(ver_params)
+        ver_params = verparams.SSBPVerificationParameters(heuristic="mixed", neurons_to_refine=[2, 2])
+        ver_strategy = veralg.SSBPVerification(ver_params)
 
         start = time.perf_counter()
         result = ver_strategy.verify(network, prop)
@@ -105,15 +105,16 @@ def get_pynever_time(model_path, property_path, timeout):
         status = "out_of_time"
         elapsed = timeout
     elif "error" in return_dict:
-        print(f"Errore: {return_dict['error']}")
         status = "error"
     else:
+        print(f"{return_dict=}")
         is_verified = return_dict.get("result")
         status = "verified" if is_verified else "not_verified"
         # elapsed preso da return_dict oppure calcolato
         elapsed = return_dict.get("elapsed", elapsed)
 
     print(f"Status: {status} | Time elapsed: {elapsed:.2f} seconds")
+
     return status, elapsed
 
 

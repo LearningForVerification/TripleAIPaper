@@ -60,10 +60,7 @@ def process_multiple_folders(folder_list):
 
 # Esempio di lista cartelle da processare
 folder_list = [
-
-    r"/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/networks/2-FC/not_over_param_not_sparse",
-
-
+    r"/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/networks/FMNIST/2-FC/over_param"
 ]
 
 process_multiple_folders(folder_list)

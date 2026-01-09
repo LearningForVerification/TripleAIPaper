@@ -46,24 +46,27 @@ def generate_local_robustness_property(input_sample, noise_level, correct_label,
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--property_folder', type=str, required=True, help='Cartella per salvare i file .smt2')
-    parser.add_argument('--test_sample', type=int, default=100, help='Numero di campioni da elaborare')
-    parser.add_argument('--epsilon', type=float, default=100, help='Forza del rumore')
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument('--property_folder', type=str, required=True, help='Cartella per salvare i file .smt2')
+    # parser.add_argument('--test_sample', type=int, default=100, help='Numero di campioni da elaborare')
+    # parser.add_argument('--epsilon', type=float, default=100, help='Forza del rumore')
+    #
+    # args = parser.parse_args()
+    #
+    # # Costanti
+    # PROPERTY_FOLDER = args.property_folder
+    # TEST_SAMPLE = args.test_sample
+    # EPSILON = args.epsilon
 
-    args = parser.parse_args()
-
-    # Costanti
-    PROPERTY_FOLDER = args.property_folder
-    TEST_SAMPLE = args.test_sample
-    EPSILON = args.epsilon
-
+    PROPERTY_FOLDER = r"/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/properties/FMNIST/0.03"
+    TEST_SAMPLE = 100
+    EPSILON = 0.03
     # Creazione cartella se non esiste
     os.makedirs(PROPERTY_FOLDER, exist_ok=True)
 
     # Caricamento dataset MNIST
     transform = transforms.ToTensor()
-    test_dataset = datasets.MNIST(root='./data', train=False, download=True, transform=transform)
+    test_dataset = datasets.FashionMNIST(root='./data', train=False, download=True, transform=transform)
 
     # Generazione proprietà SMT
     for idx in range(TEST_SAMPLE):

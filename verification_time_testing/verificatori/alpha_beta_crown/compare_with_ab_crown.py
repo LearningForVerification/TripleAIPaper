@@ -1,64 +1,54 @@
 import os
 import csv
 import logging
-import sys
 import argparse
-from jinja2 import Template
-
-# Assumendo che abcrown.py abbia una funzione principale che accetta un percorso di config
-from complete_verifier.abcrown import ABCROWN
 import time
+from jinja2 import Template
+from complete_verifier.abcrown import ABCROWN
+import signal
+from contextlib import contextmanager
 
-# Python
-import signal                           # Importa il modulo di sistema per gestire i segnali Unix.
-from contextlib import contextmanager   # Importa il decorator per creare context manager "a mano".
+# =========================
+# Timeout per tipo di rete (in secondi)
+# =========================
+TIMEOUTS = {
+    "CONV": 180,
+    "FC": 15,
+    "2-FC": 180
+}
 
+# =========================
+# Timeout context (Unix only)
+# =========================
 @contextmanager
 def timer(seconds: float):
-    """
-    Limita l'esecuzione del blocco a 'seconds' secondi (Unix only).
-    Solleva TimeoutError se scade.
-    NOTE:
-    - Funziona solo su Unix/Linux.
-    - Deve essere usato nel thread principale (limite dei segnali in Python).
-    - Usa setitimer per supportare secondi frazionari.
-    """
+    """Raise TimeoutError if block takes longer than seconds."""
     def _handler(signum, frame):
-        # Funzione chiamata automaticamente quando arriva SIGALRM.
-        # Solleva un'eccezione per uscire dal blocco 'with'.
-        raise TimeoutError(f"Operazione scaduta dopo {seconds} secondi")
+        raise TimeoutError(f"Timeout after {seconds}s")
 
     old_handler = signal.signal(signal.SIGALRM, _handler)
-    # Registra il nostro handler per SIGALRM e conserva il precedente
-    # per poterlo ripristinare in seguito.
-
     signal.setitimer(signal.ITIMER_REAL, seconds)
-    # Avvia un timer "reale" (tempo wall-clock) che, allo scadere,
-    # invierà SIGALRM al processo dopo 'seconds'.
 
     try:
-        # Entra nel contesto: il codice chiamante eseguirà il blocco 'with'.
         yield
     finally:
-        # Questa parte viene sempre eseguita, sia che il blocco termini
-        # normalmente sia che si verifichi un TimeoutError o un'altra eccezione.
-
-        signal.setitimer(signal.ITIMER_REAL, 0.0)
-        # Disattiva il timer (0.0 significa nessun allarme programmato).
-
+        signal.setitimer(signal.ITIMER_REAL, 0)
         signal.signal(signal.SIGALRM, old_handler)
-        # Ripristina l'handler dei segnali allo stato precedente.
 
-# Configura il logging
+# =========================
+# Logging
+# =========================
 logging.basicConfig(
     level=logging.INFO,
     format='[%(levelname)s] %(message)s'
 )
 logger = logging.getLogger()
 
-
-def get_alpha_beta_crown_time(model_path, property_path, template_path, timeout):
-    # Carica template
+# =========================
+# Run ABCROWN
+# =========================
+def run_abcrown(model_path, property_path, template_path, timeout):
+    """Esegue ABCROWN sul modello e sulla proprietà specificata."""
     with open(template_path) as f:
         template = Template(f.read())
 
@@ -67,119 +57,125 @@ def get_alpha_beta_crown_time(model_path, property_path, template_path, timeout)
         vnnlib_path=property_path
     )
 
-    current_dir = os.path.dirname(__file__)
-    config_path = os.path.join(current_dir, "config.yaml")
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(base_dir, "config.yaml")
 
-    # Scrivi config.yaml
-    with open(config_path, 'w') as f:
+    with open(config_path, "w") as f:
         f.write(config)
-    start_time = time.time()
+
+    start = time.time()
     try:
         with timer(timeout):
             ABCROWN(["--config", config_path]).main()
-        elapsed = time.time() - start_time
+        elapsed = time.time() - start
+
     except TimeoutError:
-        elapsed = timeout
-        return elapsed, 'timeout'
-    except Exception as e:
-        elapsed = 10000000
-        return elapsed, 'error'
+        return timeout, "timeout"
+    except Exception:
+        return timeout, "error"
 
-    # Leggi risultato da out.txt
-    out_file = os.path.join(current_dir, "out.txt")
-    with open(out_file, "r") as f:
-        content = f.read()
-        print(content)
+    out_file = os.path.join(base_dir, "out.txt")
+    if not os.path.isfile(out_file):
+        return elapsed, "failed"
 
-    if 'sat' in content and 'unsat' not in content:
-        return elapsed, 'not_verified'
-    elif 'timeout' in content:
-        return elapsed, 'unknown'
-    elif 'unsat' in content:
-        return elapsed, 'verified'
-    else:
-        return elapsed, 'failed'
+    with open(out_file) as f:
+        content = f.read().lower()
 
+    if "unsat" in content:
+        return elapsed, "verified"
+    if "sat" in content:
+        return elapsed, "not_verified"
+    if "timeout" in content:
+        return elapsed, "unknown"
 
-def main(max_prop, timeout):
-    current_directory = os.path.dirname(os.path.abspath(__file__))
+    return elapsed, "failed"
 
-    # Cartelle esperimenti
-    experiments_category_folders = ["2-FC", "FC", "CONV"]
-    experiments_category_folders = ["CONV"]
-
-    experiments_category_folders = [os.path.join(current_directory, "networks", x) for x in experiments_category_folders]
-
-    sub_category_folder = ["0.03", "over_param"]
-
-    # Cartella proprietà
-    property_folder = os.path.join(current_directory, "properties", "0.03")
-    if not os.path.isdir(property_folder):
-        raise Exception(f"Directory '{property_folder}' not found")
-
-    # Controllo cartelle reti
-    for folder in experiments_category_folders:
-        if not os.path.isdir(folder):
-            raise Exception(f"Directory '{folder}' not found")
-        for sub_folder in sub_category_folder:
-            sub_path = os.path.join(folder, sub_folder)
-            if not os.path.isdir(sub_path):
-                raise Exception(f"Directory '{sub_path}' not found")
-
-    # Creazione cartella risultati
-    results_base = os.path.join(current_directory, "results")
-    os.makedirs(results_base, exist_ok=True)
-
-    # Inizializza file CSV
-    for folder in experiments_category_folders:
-        category_name = os.path.basename(folder)
-        result_category_path = os.path.join(results_base, category_name)
-        os.makedirs(result_category_path, exist_ok=True)
-        for sub_folder in sub_category_folder:
-            csv_path = os.path.join(result_category_path, f"{sub_folder}.csv")
-            with open(csv_path, mode='w', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(["model path", "property path", "status", "time"])
-
-    # Iterazione reti e proprietà
-    for folder in experiments_category_folders:
-        category_name = os.path.basename(folder)
-        for sub_folder in sub_category_folder:
-            sub_path = os.path.join(folder, sub_folder)
-            result_csv_path = os.path.join(results_base, category_name, f"{sub_folder}.csv")
-
-            with open(result_csv_path, mode='a', newline='') as f:
-                writer = csv.writer(f)
-
-                for nn_file in sorted(os.listdir(sub_path)):
-                    if not nn_file.endswith(".onnx"):
-                        continue
-
-                    nn_path = os.path.abspath(os.path.join(sub_path, nn_file))
-                    logger.info(f"➡️ Valutazione rete: {nn_file}")
-
-                    prop_files = [f for f in sorted(os.listdir(property_folder)) if f.endswith('.vnnlib')][:max_prop]
-
-                    for i, prop_file in enumerate(prop_files, start=1):
-
-                        if not prop_file.endswith(".vnnlib"):
-                            logger.info(f"   ⏭️ Skippata proprietà non .vnnlib: {prop_file}")
-                            continue
-
-                        prop_path = os.path.abspath(os.path.join(property_folder, prop_file))
-                        logger.info(f"   └─ Proprietà {i}/{max_prop}: {prop_file}")
-
-                        template_path = os.path.abspath(os.path.join(current_directory, "template_config_5.yaml"))
-                        elapsed, status = get_alpha_beta_crown_time(nn_path, prop_path, template_path, timeout=timeout)
-
-                        writer.writerow([nn_file, prop_file, status, elapsed])
-
-                    logger.info(f"✅ Completata rete: {nn_file}")
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Valutazione reti con alpha_beta_crown.")
-    parser.add_argument('--max_prop', type=int, default=100, help='Numero massimo di proprietà da analizzare')
-    parser.add_argument('--timeout', type=float, default=64, help='Timeout per l\'analisi di ogni proprietà (in secondi)')
+# =========================
+# Main
+# =========================
+def main():
+    parser = argparse.ArgumentParser(description="Verifica proprietà su reti neurali usando ABCROWN")
+    parser.add_argument("--max_prop", type=int, default=100, help="Numero massimo di proprietà da verificare")
     args = parser.parse_args()
 
-    main(args.max_prop, args.timeout)
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+    DATASETS = ["FMNIST", "CIFAR_CUSTOM"]
+    ARCHS = ["CONV", "FC", "2-FC"]
+    SUBCATS = ["0.03", "over_param"]
+
+    RESULTS_BASE = os.path.join(BASE_DIR, "results")
+    os.makedirs(RESULTS_BASE, exist_ok=True)
+
+    TEMPLATE_PATH = os.path.join(BASE_DIR, "template_config_5.yaml")
+
+    for dataset in DATASETS:
+        property_folder = os.path.join(BASE_DIR, "properties", dataset, "0.03")
+        if not os.path.isdir(property_folder):
+            logger.warning(f"⚠️ Proprietà mancanti per {dataset}, skip")
+            continue
+
+        prop_files = sorted(f for f in os.listdir(property_folder) if f.endswith(".vnnlib"))[:args.max_prop]
+
+        for arch in ARCHS:
+            arch_path = os.path.join(BASE_DIR, "networks", dataset, arch)
+            if not os.path.isdir(arch_path):
+                continue
+
+            # Timeout fisso per architettura dal dizionario
+            arch_timeout = TIMEOUTS[arch]
+
+            result_arch_path = os.path.join(RESULTS_BASE, arch, dataset)
+            os.makedirs(result_arch_path, exist_ok=True)
+
+            for subcat in SUBCATS:
+                subcat_path = os.path.join(arch_path, subcat)
+                if not os.path.isdir(subcat_path):
+                    continue
+
+                csv_path = os.path.join(result_arch_path, f"{subcat}.csv")
+
+                with open(csv_path, "w", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(["model", "property", "status", "time"])
+
+                    for nn_file in sorted(os.listdir(subcat_path)):
+                        if not nn_file.endswith(".onnx"):
+                            continue
+
+                        nn_path = os.path.join(subcat_path, nn_file)
+                        logger.info(f"➡️ {dataset}/{arch}/{subcat} → {nn_file} (timeout={arch_timeout}s)")
+
+                        times = []
+                        num_timeout = 0
+                        num_failure = 0
+
+                        for prop in prop_files:
+                            prop_path = os.path.join(property_folder, prop)
+                            elapsed, status = run_abcrown(nn_path, prop_path, TEMPLATE_PATH, arch_timeout)
+
+                            writer.writerow([nn_file, prop, status, elapsed])
+
+                            if status in ("verified", "not_verified"):
+                                times.append(elapsed)
+                            elif status == "timeout":
+                                num_timeout += 1
+                            else:
+                                num_failure += 1
+
+                        median_time = sum(times) / len(times) if times else 0.0
+
+                        writer.writerow([
+                            nn_file,
+                            "SUMMARY",
+                            f"median_time={median_time:.2f}s, timeouts={num_timeout}, failures={num_failure}",
+                            ""
+                        ])
+
+                        logger.info(f"✅ {nn_file} | median={median_time:.2f}s | timeouts={num_timeout} | failures={num_failure}")
+
+# =========================
+# Entry point
+# =========================
+if __name__ == "__main__":
+    main()

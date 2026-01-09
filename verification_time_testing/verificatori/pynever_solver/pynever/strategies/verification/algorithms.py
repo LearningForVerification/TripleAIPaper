@@ -394,10 +394,11 @@ class SSBPVerification(VerificationStrategy):
                         # We should detect and throw more exact intersection check
                         input_num_bounds = nn_bounds.numeric_pre_bounds[self.network.get_first_node().identifier]
 
-                        self.logger.info(f"\tBranch {current_star.fixed_neurons} is inconsistent with bounds, "
-                                         f"input {input_num_bounds.get_lower()} {input_num_bounds.get_upper()}")
+                        #self.logger.info(f"\tBranch {current_star.fixed_neurons} is inconsistent with bounds, "
+                        #                 f"input {input_num_bounds.get_lower()} {input_num_bounds.get_upper()}")
 
-                        raise Exception("This point should not be reachable")
+                        #raise Exception("This point should not be reachable")
+                        return False, None
 
             else:
                 # This branch is safe, no refinement needed

@@ -3,43 +3,100 @@ import os
 import sys
 import time
 import subprocess
-import pandas as pd
 from jinja2 import Template
 
-TIMEOUT = 15  # secondi per ogni verifica
+# Timeout di default (secondi) per ogni verifica
+TIMEOUT = 15
 
-def get_alpha_beta_crown_time(model_path, property_path, template_path, timeout):
-    with open(template_path) as f:
+def get_alpha_beta_crown_time(model_path, property_path, template_path, timeout=TIMEOUT):
+    """
+    Esegue ABCROWN sul modello ONNX e sulla proprietà VNNLIB.
+
+    Parametri:
+    -----------
+    model_path : str
+        Percorso del file ONNX del modello (assoluto o relativo a questo script).
+    property_path : str
+        Percorso del file VNNLIB della proprietà (assoluto o relativo a questo script).
+    template_path : str
+        Percorso del template YAML di configurazione ABCROWN (assoluto o relativo a questo script).
+    timeout : float
+        Tempo massimo (in secondi) per la verifica.
+
+    Ritorna:
+    --------
+    elapsed : float o int
+        Tempo impiegato per la verifica.
+    status : str
+        'verified', 'not_verified', 'failed' o 'timeout'.
+    """
+
+    # Risolvo percorsi assoluti relativi a questo script
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    model_path = os.path.join(base_dir, model_path) if not os.path.isabs(model_path) else model_path
+    property_path = os.path.join(base_dir, property_path) if not os.path.isabs(property_path) else property_path
+    template_path = os.path.join(base_dir, template_path) if not os.path.isabs(template_path) else template_path
+
+    # 1️⃣ Leggi e renderizza il template di configurazione
+    with open(template_path, "r") as f:
         template = Template(f.read())
+    config = template.render(onnx_path=model_path, vnnlib_path=property_path)
 
-    config = template.render(
-        onnx_path=model_path,
-        vnnlib_path=property_path
-    )
-
-    current_dir = os.path.dirname(__file__)
-    config_path = os.path.join(current_dir, "config.yaml")
-
-    with open(config_path, 'w') as f:
+    config_path = os.path.join(base_dir, "config.yaml")
+    with open(config_path, "w") as f:
         f.write(config)
 
-    cmd = [sys.executable, "complete_verifier/abcrown.py", "--config", config_path]
+    # 2️⃣ Comando per eseguire ABCROWN
+    abcrown_path = os.path.join(base_dir, "complete_verifier", "abcrown.py")
+    cmd = [sys.executable, abcrown_path, "--config", config_path]
 
     start_time = time.time()
     try:
-        subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT)
+        # Esegui ABCROWN catturando stdout/stderr
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         elapsed = time.time() - start_time
+
+        # Stampa stdout/stderr per debug
+        print(result.stdout)
+        if result.stderr:
+            print(result.stderr, file=sys.stderr)
+
     except subprocess.TimeoutExpired:
-        return "timeout", TIMEOUT
+        return timeout, "timeout"
+    except Exception as e:
+        print(f"[ERROR] Exception durante ABCROWN: {e}")
+        return timeout, "failed"
 
-    # Leggi risultato da out.txt
-    with open(os.path.join(os.path.dirname(__file__), "out.txt"), "r") as f:
-        content = f.read()
+    # 3️⃣ Controllo out.txt (alcune versioni di ABCROWN scrivono qui)
+    out_file = os.path.join(base_dir, "out.txt")
+    content = ""
+    if os.path.isfile(out_file):
+        with open(out_file, "r") as f:
+            content = f.read().lower()
 
-    if 'sat' in content and 'unsat' not in content:
-        return elapsed, 'not_verified'
-    elif 'unsat' in content:
-        return elapsed, 'verified'
+    # 4️⃣ Determina lo status
+    combined_content = content + "\n" + result.stdout.lower()
+    if "unsat" in combined_content:
+        return elapsed, "verified"
+    elif "sat" in combined_content:
+        return elapsed, "not_verified"
+    elif "timeout" in combined_content:
+        return elapsed, "timeout"
     else:
-        return elapsed, 'failed'
+        return elapsed, "failed"
 
+
+# =========================
+# Esempio di utilizzo
+# =========================
+if __name__ == "__main__":
+
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    model = os.path.join(base_dir, "networks/FMNIST/2-FC/0.03/2x50.onnx")
+    prop = os.path.join(base_dir, "properties/FMNIST/0.03/sample_0000_label_9_eps_0.0300.vnnlib")
+    template = os.path.join(base_dir, "template_config_5.yaml")
+    timeout = 15
+
+    elapsed, status = get_alpha_beta_crown_time(model, prop, template, timeout)
+    print(f"Risultato: {status} | Tempo: {elapsed:.2f}s")

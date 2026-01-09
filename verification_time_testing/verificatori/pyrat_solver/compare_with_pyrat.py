@@ -5,8 +5,13 @@ import argparse
 import os
 import csv
 import re
+import statistics
+import multiprocessing as mp
+import signal
 
-# Configura il logging
+# =========================
+# Logging
+# =========================
 logging.basicConfig(
     level=logging.INFO,
     format='[%(levelname)s] %(message)s'
@@ -14,138 +19,204 @@ logging.basicConfig(
 logger = logging.getLogger()
 
 
+# =========================
+# Pyrat worker (isolato)
+# =========================
+def _pyrat_worker(model_path, property_path, timeout, queue):
+    try:
+        cmd = [
+            "python", "pyrat.pyc",
+            "--model_path", model_path,
+            "--property_path", property_path,
+            "--split", "True",
+            "--verbose", "False",
+            "--nb_process", "4",
+            "--domains", "zonotopes",
+            "--timeout", str(timeout)
+        ]
 
-def run_pyrat(model_path: str, property_path: str, timeout: int ):
+        start = time.time()
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True
+        )
+
+        elapsed = time.time() - start
+
+        match = re.search(r"Result\s*=\s*(True|False)", result.stdout)
+        print(f"pyrat_response: {result.stdout}")
+        if match:
+            status = "verified" if match.group(1) == "True" else "not_verified"
+        else:
+            status = "error"
+
+        queue.put((elapsed, status))
+
+    except Exception as e:
+        queue.put((0.0, f"error:{e}"))
+
+
+# =========================
+# Pyrat wrapper con timeout HARD
+# =========================
+import subprocess
+import time
+import re
+import logging
+
+logger = logging.getLogger()
+
+def run_pyrat(model_path, property_path, timeout):
     cmd = [
         "python", "pyrat.pyc",
         "--model_path", model_path,
         "--property_path", property_path,
         "--split", "True",
-        "--verbose", "True",
+        "--verbose", "False",
         "--nb_process", "4",
-        "--domains", "zonotopes",
-        "--timeout", str(timeout)
+        "--domains", "zonotopes"
     ]
 
-    print(f"Eseguo: modello={model_path}, proprietà={property_path}")
-
-    start_time = time.time()
+    start = time.time()
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        output = result.stdout
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout
 
+        )
+
+        elapsed = time.time() - start
+        output = result.stdout + result.stderr
+        print(f"{output}")
         match = re.search(r"Result\s*=\s*(True|False)", output)
+
+
         if match:
-            if match.group(1) == "True":
-                status = "verified"
-            else:
-                status = "not_verified"
+            status = "verified" if match.group(1) == "True" else "not_verified"
         else:
             status = "error"
 
+        return elapsed, status
+
     except subprocess.TimeoutExpired:
-        print(f"Timeout dopo {timeout} secondi.")
-        status = "error"
+        logger.warning("⏱️ Timeout → Pyrat terminato")
+        return timeout, "timeout"
 
-    end_time = time.time()
-    print(f"Tempo totale: {end_time - start_time:.2f} secondi")
-    print(f"Status: {status}")
-
-    elapsed = end_time - start_time
+    except Exception as e:
+        logger.error(f"❌ Errore Pyrat: {e}")
+        return 0.0, "error"
 
 
 
-
-    return elapsed, status
-
-
-
-
+# =========================
+# Main
+# =========================
 def main():
-    parser = argparse.ArgumentParser(description="Esegui Pyrat su tutte le combinazioni modelli-proprietà.")
-    parser.add_argument("--timeout", type=int, default=50, help="Timeout in secondi per ogni run")
-    parser.add_argument("--max_prop", type=int, default=15, help="Timeout in secondi per ogni run")
-
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--max_prop", type=int, default=1)
     args = parser.parse_args()
 
-    max_prop = args.max_prop
-    # Directory corrente
-    current_directory = os.path.dirname(os.path.abspath(__file__))
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-    # Cartelle delle categorie di esperimenti
-    #experiments_category_folders = ["2-FC", "FC"]
-    experiments_category_folders = ["CONV"]
+    DATASETS = ["CIFAR_CUSTOM", "FMNIST"]
+    ARCHS = ["FC", "2-FC", "CONV"]
+    SUBCATS = ["0.03", "over_param"]
 
-    experiments_category_folders = [os.path.join(current_directory, "networks", x) for x in
-                                    experiments_category_folders]
-
-    sub_category_folder = ["0.03", "over_param"]
-
-
-    # Cartella proprietà (deve esistere)
-    property_folder = os.path.join(current_directory, "properties", "0.03")
-    if not os.path.isdir(property_folder):
-        raise Exception(f"Directory '{property_folder}' not found")
-
-    # Controlla esistenza delle directory principali e delle sottocartelle
-    for folder in experiments_category_folders:
-        if not os.path.isdir(folder):
-            raise Exception(f"Directory '{folder}' not found")
-
-        for sub_folder in sub_category_folder:
-            sub_path = os.path.join(folder, sub_folder)
-            if not os.path.isdir(sub_path):
-                raise Exception(f"Directory '{sub_path}' not found")
-
-    # Crea cartelle in 'results/<categoria>' e file CSV vuoti per ciascuna sottocategoria
-    results_base = os.path.join(current_directory, "results")
-    os.makedirs(results_base, exist_ok=True)
-
-    for folder in experiments_category_folders:
-        category_name = os.path.basename(folder)
-        result_category_path = os.path.join(results_base, category_name)
-        os.makedirs(result_category_path, exist_ok=True)
-
-        for sub_folder in sub_category_folder:
-            csv_path = os.path.join(result_category_path, f"{sub_folder}.csv")
-            with open(csv_path, mode='w', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(["model path", "property path", "status", "time"])
+    # Timeout per categoria
+    TIMEOUTS = {
+        "CONV": 180,
+        "FC": 15,
+        "2-FC": 180
+    }
 
 
+    RESULTS_BASE = os.path.join(BASE_DIR, "results")
+    os.makedirs(RESULTS_BASE, exist_ok=True)
 
-    for folder in experiments_category_folders:
-        category_name = os.path.basename(folder)
-        for sub_folder in sub_category_folder:
-            sub_path = os.path.join(folder, sub_folder)
-            result_csv_path = os.path.join(results_base, category_name, f"{sub_folder}.csv")
+    for dataset in DATASETS:
 
-            with open(result_csv_path, mode='a', newline='') as f:
-                writer = csv.writer(f)
+        # Proprietà (come Marabou)
+        property_folder = os.path.join(BASE_DIR, "properties", dataset, "0.03")
+        if not os.path.isdir(property_folder):
+            logger.warning(f"⚠️ Proprietà mancanti per {dataset}, skip")
+            continue
 
-                for nn_file in sorted(os.listdir(sub_path)):
-                    if not nn_file.endswith(".onnx"):
-                        continue
+        prop_files = sorted(os.listdir(property_folder))[:args.max_prop]
 
-                    nn_path = os.path.join(sub_path, nn_file)
-                    logger.info(f"➡️ Valutazione rete: {nn_file}")
+        for arch in ARCHS:
+            arch_path = os.path.join(BASE_DIR, "networks", dataset, arch)
+            if not os.path.isdir(arch_path):
+                continue
 
-                    prop_files = sorted(os.listdir(property_folder))[:max_prop]
+            timeout_for_arch = TIMEOUTS.get(arch, 50)
 
-                    for i, prop_file in enumerate(prop_files, start=1):
-                        prop_path = os.path.join(property_folder, prop_file)
-                        logger.info(f"   └─ Proprietà {i}/{max_prop}: {prop_file}")
+            # results/<ARCH>/<DATASET>/
+            result_arch_path = os.path.join(RESULTS_BASE, arch, dataset)
+            os.makedirs(result_arch_path, exist_ok=True)
 
-                        elapsed, status = run_pyrat(nn_path, prop_path, args.timeout)
+            for subcat in SUBCATS:
+                subcat_path = os.path.join(arch_path, subcat)
+                if not os.path.isdir(subcat_path):
+                    continue
 
-                        writer.writerow([nn_file, prop_file, status, elapsed])
+                csv_path = os.path.join(result_arch_path, f"{subcat}.csv")
 
-                    logger.info(f"✅ Completata rete: {nn_file}")
+                with open(csv_path, "w", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(["model", "property", "status", "time"])
 
-def e_test():
-    run_pyrat(r"networks/FC/over_param/fcnn_30.onnx", r"properties/0.03/sample_0046_label_1_eps_0.030.vnnlib", 25)
+                    for nn_file in sorted(os.listdir(subcat_path)):
+                        if not nn_file.endswith(".onnx"):
+                            continue
+
+                        nn_path = os.path.join(subcat_path, nn_file)
+
+                        logger.info(
+                            f"➡️ {dataset}/{arch}/{subcat} → {nn_file} | timeout={timeout_for_arch}s"
+                        )
+
+                        times = []
+                        num_timeout = 0
+                        num_failure = 0
+
+                        for prop in prop_files:
+                            prop_path = os.path.join(property_folder, prop)
+
+                            elapsed, status = run_pyrat(
+                                nn_path, prop_path, timeout_for_arch
+                            )
+
+                            writer.writerow([nn_file, prop, status, elapsed])
+
+                            if status in ("verified", "not_verified"):
+                                times.append(elapsed)
+                            elif status == "timeout":
+                                num_timeout += 1
+                            else:
+                                num_failure += 1
+
+                        median_time = statistics.median(times) if times else 0.0
+
+                        # Summary stile Marabou
+                        writer.writerow([
+                            nn_file,
+                            "SUMMARY",
+                            f"median_time={median_time:.2f}s, timeouts={num_timeout}, failures={num_failure}",
+                            ""
+                        ])
+
+                        logger.info(
+                            f"✅ {nn_file} | median={median_time:.2f}s | "
+                            f"timeouts={num_timeout} | failures={num_failure}"
+                        )
 
 
 if __name__ == "__main__":
+    mp.set_start_method("spawn", force=True)
     main()
