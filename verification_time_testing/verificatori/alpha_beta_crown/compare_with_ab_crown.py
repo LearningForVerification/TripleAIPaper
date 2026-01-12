@@ -7,12 +7,14 @@ from jinja2 import Template
 from complete_verifier.abcrown import ABCROWN
 import signal
 from contextlib import contextmanager
+import io
+from contextlib import redirect_stdout, redirect_stderr
 
 # =========================
 # Timeout per tipo di rete (in secondi)
 # =========================
 TIMEOUTS = {
-    "CONV": 180,
+    "CONV": 400,
     "FC": 15,
     "2-FC": 180
 }
@@ -36,19 +38,19 @@ def timer(seconds: float):
         signal.signal(signal.SIGALRM, old_handler)
 
 # =========================
-# Logging
+# Logging (solo per debug, stampa principale sarà con print)
 # =========================
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(levelname)s] %(message)s'
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
 # =========================
 # Run ABCROWN
 # =========================
+# Variabile globale DEBUG
+DEBUG = False  # True → stampa tutto l'output di ABCROWN, False → output minimal
+
 def run_abcrown(model_path, property_path, template_path, timeout):
-    """Esegue ABCROWN sul modello e sulla proprietà specificata."""
+    """Esegue ABCROWN sul modello e sulla proprietà specificata con debug opzionale."""
     with open(template_path) as f:
         template = Template(f.read())
 
@@ -64,31 +66,45 @@ def run_abcrown(model_path, property_path, template_path, timeout):
         f.write(config)
 
     start = time.time()
+
     try:
         with timer(timeout):
-            ABCROWN(["--config", config_path]).main()
+            if DEBUG:
+                # debug: lascia uscita standard
+                ABCROWN(["--config", config_path]).main()
+            else:
+                # silenzioso: cattura output in memoria
+                f_terminal = io.StringIO()
+                with redirect_stdout(f_terminal), redirect_stderr(f_terminal):
+                    ABCROWN(["--config", config_path]).main()
+
         elapsed = time.time() - start
 
     except TimeoutError:
         return timeout, "timeout"
-    except Exception:
+    except Exception as e:
+        if DEBUG:
+            print(f"❌ Errore ABCROWN: {e}")
         return timeout, "error"
 
+    # Controlla out.txt
     out_file = os.path.join(base_dir, "out.txt")
-    if not os.path.isfile(out_file):
-        return elapsed, "failed"
+    if os.path.isfile(out_file):
+        with open(out_file) as f_out:
+            content = f_out.read().lower()
+        os.remove(out_file)
 
-    with open(out_file) as f:
-        content = f.read().lower()
+        if "unsat" in content:
+            status = "verified"
+        elif "sat" in content:
+            status = "not_verified"
+        else:
+            status = "unknown"
+    else:
+        status = "unknown"
 
-    if "unsat" in content:
-        return elapsed, "verified"
-    if "sat" in content:
-        return elapsed, "not_verified"
-    if "timeout" in content:
-        return elapsed, "unknown"
+    return elapsed, status
 
-    return elapsed, "failed"
 
 # =========================
 # Main
@@ -103,6 +119,9 @@ def main():
     DATASETS = ["FMNIST", "CIFAR_CUSTOM"]
     ARCHS = ["CONV", "FC", "2-FC"]
     SUBCATS = ["0.03", "over_param"]
+    DATASETS = ["FMNIST"]
+    ARCHS = ["CONV", "2-FC"]
+    SUBCATS = ["0.03", "over_param"]
 
     RESULTS_BASE = os.path.join(BASE_DIR, "results")
     os.makedirs(RESULTS_BASE, exist_ok=True)
@@ -112,7 +131,7 @@ def main():
     for dataset in DATASETS:
         property_folder = os.path.join(BASE_DIR, "properties", dataset, "0.03")
         if not os.path.isdir(property_folder):
-            logger.warning(f"⚠️ Proprietà mancanti per {dataset}, skip")
+            print(f"⚠️ Proprietà mancanti per {dataset}, skip")
             continue
 
         prop_files = sorted(f for f in os.listdir(property_folder) if f.endswith(".vnnlib"))[:args.max_prop]
@@ -122,7 +141,6 @@ def main():
             if not os.path.isdir(arch_path):
                 continue
 
-            # Timeout fisso per architettura dal dizionario
             arch_timeout = TIMEOUTS[arch]
 
             result_arch_path = os.path.join(RESULTS_BASE, arch, dataset)
@@ -135,8 +153,8 @@ def main():
 
                 csv_path = os.path.join(result_arch_path, f"{subcat}.csv")
 
-                with open(csv_path, "w", newline="") as f:
-                    writer = csv.writer(f)
+                with open(csv_path, "w", newline="") as f_csv:
+                    writer = csv.writer(f_csv)
                     writer.writerow(["model", "property", "status", "time"])
 
                     for nn_file in sorted(os.listdir(subcat_path)):
@@ -144,7 +162,7 @@ def main():
                             continue
 
                         nn_path = os.path.join(subcat_path, nn_file)
-                        logger.info(f"➡️ {dataset}/{arch}/{subcat} → {nn_file} (timeout={arch_timeout}s)")
+                        print(f"\n➡️ {dataset}/{arch}/{subcat} → {nn_file} (timeout={arch_timeout}s)")
 
                         times = []
                         num_timeout = 0
@@ -152,27 +170,38 @@ def main():
 
                         for prop in prop_files:
                             prop_path = os.path.join(property_folder, prop)
+
                             elapsed, status = run_abcrown(nn_path, prop_path, TEMPLATE_PATH, arch_timeout)
 
+                            # Scrive su CSV
                             writer.writerow([nn_file, prop, status, elapsed])
 
-                            if status in ("verified", "not_verified"):
+                            # Stampa immediata a terminale in base allo stato
+                            if status == "verified":
+                                print(f"   ✅ {prop}: VERIFIED in {elapsed:.2f}s")
+                                times.append(elapsed)
+                            elif status == "not_verified":
+                                print(f"   ❌ {prop}: NOT VERIFIED in {elapsed:.2f}s")
                                 times.append(elapsed)
                             elif status == "timeout":
+                                print(f"   ⏱ {prop}: TIMEOUT after {elapsed:.2f}s")
                                 num_timeout += 1
+                            elif status == "error":
+                                print(f"   ⚠️ {prop}: ERROR")
+                                num_failure += 1
                             else:
+                                print(f"   ❓ {prop}: UNKNOWN in {elapsed:.2f}s")
                                 num_failure += 1
 
+                        # Riepilogo modello
                         median_time = sum(times) / len(times) if times else 0.0
-
                         writer.writerow([
                             nn_file,
                             "SUMMARY",
                             f"median_time={median_time:.2f}s, timeouts={num_timeout}, failures={num_failure}",
                             ""
                         ])
-
-                        logger.info(f"✅ {nn_file} | median={median_time:.2f}s | timeouts={num_timeout} | failures={num_failure}")
+                        print(f"✅ {nn_file} | median={median_time:.2f}s | timeouts={num_timeout} | failures={num_failure}")
 
 # =========================
 # Entry point

@@ -85,9 +85,15 @@ def main(max_prop):
     # Categorie esperimenti
     categories = ["CONV", "FC", "2-FC"]
 
+    # Dataset disponibili
+    dataset_names = ["FMNIST"]
+
+    # Categorie esperimenti
+    categories = ["CONV"]
+
     # Timeout fissi per categoria
     timeout_per_category = {
-        "CONV": 180,
+        "CONV": 400,
         "FC": 15,
         "2-FC": 180
     }

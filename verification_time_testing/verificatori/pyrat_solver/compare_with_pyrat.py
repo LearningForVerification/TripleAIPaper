@@ -7,7 +7,6 @@ import csv
 import re
 import statistics
 import multiprocessing as mp
-import signal
 
 # =========================
 # Logging
@@ -20,98 +19,66 @@ logger = logging.getLogger()
 
 
 # =========================
-# Pyrat worker (isolato)
+# Pyrat runner con output live e gestione timeout
 # =========================
-def _pyrat_worker(model_path, property_path, timeout, queue):
-    try:
-        cmd = [
-            "python", "pyrat.pyc",
-            "--model_path", model_path,
-            "--property_path", property_path,
-            "--split", "True",
-            "--verbose", "False",
-            "--nb_process", "4",
-            "--domains", "zonotopes",
-            "--timeout", str(timeout)
-        ]
-
-        start = time.time()
-
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True
-        )
-
-        elapsed = time.time() - start
-
-        match = re.search(r"Result\s*=\s*(True|False)", result.stdout)
-        print(f"pyrat_response: {result.stdout}")
-        if match:
-            status = "verified" if match.group(1) == "True" else "not_verified"
-        else:
-            status = "error"
-
-        queue.put((elapsed, status))
-
-    except Exception as e:
-        queue.put((0.0, f"error:{e}"))
-
-
-# =========================
-# Pyrat wrapper con timeout HARD
-# =========================
-import subprocess
-import time
-import re
-import logging
-
-logger = logging.getLogger()
-
-def run_pyrat(model_path, property_path, timeout):
+def run_pyrat(model_path, property_path, timeout, nb_process=4, domains="zonotopes", split=True, verbose=False):
+    # Aggiungiamo --timeout al comando
     cmd = [
         "python", "pyrat.pyc",
         "--model_path", model_path,
         "--property_path", property_path,
-        "--split", "True",
-        "--verbose", "False",
-        "--nb_process", "4",
-        "--domains", "zonotopes"
+        "--split", str(split),
+        "--verbose", str(verbose),
+        "--nb_process", str(nb_process),
+        "--domains", str(domains),
+        "--timeout", str(timeout)   # <-- timeout passato direttamente a Pyrat
     ]
 
+    logger.info(f"➡️ Comando: {' '.join(cmd)}")
     start = time.time()
 
     try:
-        result = subprocess.run(
+        process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=timeout
-
+            stderr=subprocess.STDOUT,
+            text=True
         )
 
+        output = ""
+        try:
+            # stampiamo tutto in tempo reale
+            for line in process.stdout:
+                print(line, end="")  # output live
+                output += line
+
+            # attendiamo fine processo con timeout HARD
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            logger.warning(f"⏱️ Timeout HARD: {model_path} terminato dopo {timeout}s")
+            return timeout, "timeout"
+
         elapsed = time.time() - start
-        output = result.stdout + result.stderr
-        print(f"{output}")
-        match = re.search(r"Result\s*=\s*(True|False)", output)
 
-
+        # regex per catturare anche Timeout interno di Pyrat
+        match = re.search(r"Result\s*=\s*(True|False|Timeout)", output, re.IGNORECASE)
         if match:
-            status = "verified" if match.group(1) == "True" else "not_verified"
+            val = match.group(1).lower()
+            if val == "true":
+                status = "verified"
+            elif val == "false":
+                status = "not_verified"
+            elif val == "timeout":
+                status = "timeout"
         else:
             status = "error"
 
         return elapsed, status
 
-    except subprocess.TimeoutExpired:
-        logger.warning("⏱️ Timeout → Pyrat terminato")
-        return timeout, "timeout"
-
     except Exception as e:
         logger.error(f"❌ Errore Pyrat: {e}")
         return 0.0, "error"
-
 
 
 # =========================
@@ -124,24 +91,21 @@ def main():
 
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-    DATASETS = ["CIFAR_CUSTOM", "FMNIST"]
-    ARCHS = ["FC", "2-FC", "CONV"]
+    DATASETS = ["FMNIST"]
+    ARCHS = ["2-FC", "CONV"]
     SUBCATS = ["0.03", "over_param"]
 
-    # Timeout per categoria
+    # Timeout personalizzati per architettura
     TIMEOUTS = {
-        "CONV": 180,
+        "CONV": 400,
         "FC": 15,
         "2-FC": 180
     }
-
 
     RESULTS_BASE = os.path.join(BASE_DIR, "results")
     os.makedirs(RESULTS_BASE, exist_ok=True)
 
     for dataset in DATASETS:
-
-        # Proprietà (come Marabou)
         property_folder = os.path.join(BASE_DIR, "properties", dataset, "0.03")
         if not os.path.isdir(property_folder):
             logger.warning(f"⚠️ Proprietà mancanti per {dataset}, skip")
@@ -156,7 +120,6 @@ def main():
 
             timeout_for_arch = TIMEOUTS.get(arch, 50)
 
-            # results/<ARCH>/<DATASET>/
             result_arch_path = os.path.join(RESULTS_BASE, arch, dataset)
             os.makedirs(result_arch_path, exist_ok=True)
 

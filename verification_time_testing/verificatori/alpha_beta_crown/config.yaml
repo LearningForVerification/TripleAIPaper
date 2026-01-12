@@ -2,6 +2,7 @@
 general:
   complete_verifier: bab
   results_file: out.txt
+  enable_incomplete_verification: false
 
 model:
   onnx_path: "/mnt/c/Users/andr3/PycharmProjects/TripleAIPaper/verification_time_testing/verificatori/alpha_beta_crown/networks/FMNIST/CONV/0.03/17_100.onnx"

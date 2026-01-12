@@ -24,10 +24,12 @@ WORKDIR /workspace
 # Installa requirements del progetto
 RUN pip install -r complete_verifier/requirements.txt
 
-# Clona e installa auto_LiRPA mantenendo la repo
+# Clona e installa auto_LiRPA su un commit specifico
 RUN git clone https://github.com/Verified-Intelligence/auto_LiRPA && \
     cd auto_LiRPA && \
+    git checkout 77e3c2b45c2b9c4e2462f6c070982e29b42cc0f5 && \
     pip install .
+
 
 # Avvia bash di default
 CMD ["bash"]

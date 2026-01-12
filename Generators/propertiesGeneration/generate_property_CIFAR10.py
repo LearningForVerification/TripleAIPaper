@@ -120,8 +120,8 @@ def generate_local_robustness_property(
 # ============================================================
 if __name__ == "__main__":
     CSV_PATH = "./custom_test.csv"                          # percorso CSV
-    PROPERTY_FOLDER = "./properties/CIFAR_CUSTOM/0.03"      # cartella output
-    EPSILON = 0.03                                           # perturbazione L_inf
+    PROPERTY_FOLDER = "./properties/CIFAR_CUSTOM/0.1"      # cartella output
+    EPSILON = 0.1                                        # perturbazione L_inf
     NUM_CLASSES = 10                                         # numero classi
     NORMALIZE = True                                         # normalizzazione
 

@@ -2,6 +2,7 @@
 general:
   complete_verifier: bab
   results_file: out.txt
+  enable_incomplete_verification: false
 
 model:
   onnx_path: "{{ onnx_path }}"
